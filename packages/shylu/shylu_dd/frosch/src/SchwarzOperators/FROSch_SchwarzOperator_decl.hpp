@@ -211,7 +211,7 @@ namespace FROSch {
         bool IsInitialized_ = false;
         bool IsComputed_ = false;
 
-        ConstUN LevelID_ = 1;
+        UN LevelID_ = 1;
     };
 
 }
