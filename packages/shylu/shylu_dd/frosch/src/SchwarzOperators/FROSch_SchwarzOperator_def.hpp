@@ -53,7 +53,8 @@ namespace FROSch {
     template<class SC,class LO,class GO,class NO>
     SchwarzOperator<SC,LO,GO,NO>::SchwarzOperator(CommPtr comm) :
     MpiComm_ (comm),
-    Verbose_ (comm->getRank()==0)
+    /* Verbose_ (comm->getRank()==0) */
+    Verbose_ (false)
     {
 
     }
@@ -64,7 +65,8 @@ namespace FROSch {
     MpiComm_ (k->getRangeMap()->getComm()),
     K_ (k),
     ParameterList_ (parameterList),
-    Verbose_ (MpiComm_->getRank()==0),
+    /* Verbose_ (MpiComm_->getRank()==0), */
+    Verbose_ (false),
     LevelID_ (ParameterList_->get("Level ID",UN(1)))
     {
         FROSCH_ASSERT(getDomainMap()->isSameAs(*getRangeMap()),"SchwarzOperator assumes DomainMap==RangeMap");

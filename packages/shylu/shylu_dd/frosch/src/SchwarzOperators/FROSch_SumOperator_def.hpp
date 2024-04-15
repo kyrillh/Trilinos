@@ -66,8 +66,8 @@ namespace FROSch {
         FROSCH_ASSERT(operators.size()>0,"operators.size()<=0");
         OperatorVector_.push_back(operators[0]);
         for (unsigned i=1; i<operators.size(); i++) {
-            FROSCH_ASSERT(operators[i]->OperatorDomainMap().SameAs(OperatorVector_[0]->OperatorDomainMap()),"The DomainMaps of the operators are not identical.");
-            FROSCH_ASSERT(operators[i]->OperatorRangeMap().SameAs(OperatorVector_[0]->OperatorRangeMap()),"The RangeMaps of the operators are not identical.");
+            FROSCH_ASSERT(operators[i]->getDomainMap()->isSameAs(*OperatorVector_[0]->getDomainMap()),"The DomainMaps of the operators are not identical.");
+            FROSCH_ASSERT(operators[i]->getRangeMap()->isSameAs(*OperatorVector_[0]->getRangeMap()),"The RangeMaps of the operators are not identical.");
 
             OperatorVector_.push_back(operators[i]);
             EnableOperators_.push_back(true);

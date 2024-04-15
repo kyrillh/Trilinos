@@ -127,7 +127,8 @@ int main(int argc, char *argv[])
     My_CLP.setOption("DPN",&DofsPerNode,"Dofs per node.");
     int DOFOrdering = 0;
     My_CLP.setOption("ORD",&DOFOrdering,"Dofs ordering (NodeWise=0, DimensionWise=1, Custom=2).");
-    string xmlFile = "ParameterList.xml";
+    /* string xmlFile = "ParameterLists/ParameterList_GDSWPreconditioner.xml"; */
+    string xmlFile = "ParameterLists/ParameterList_TwoLevelPreconditioner_IPOUHarmonic_GDSW.xml";
     My_CLP.setOption("PLIST",&xmlFile,"File name of the parameter list.");
     bool useepetra = false;
     My_CLP.setOption("USEEPETRA","USETPETRA",&useepetra,"Use Epetra infrastructure for the linear algebra.");

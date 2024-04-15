@@ -199,6 +199,7 @@ namespace FROSch {
             if (YTmp_.is_null()) YTmp_ = MultiVectorFactory<SC,LO,GO,NO>::Build(CoarseSolveMap_,x.getNumVectors());
             else YTmp_->replaceMap(CoarseSolveMap_); // The map is replaced later in this function. If we do not build it from scratch, we should at least replace the map here. This may be important since the maps live on different communicators.
         }
+  //TODO: kho restore the map of x
         YTmp_->replaceMap(GatheringMaps_[GatheringMaps_.size()-1]);
         y = *YTmp_;
     }
@@ -445,7 +446,8 @@ namespace FROSch {
                 reduceAll(*CoarseSolveComm_,REDUCE_MIN,localVec[4],ptr(&minVec[4]));
                 reduceAll(*CoarseSolveComm_,REDUCE_MAX,localVec[4],ptr(&maxVec[4]));
 
-                if (CoarseSolveComm_->getRank() == 0) {
+                /* if (CoarseSolveComm_->getRank() == 0) { */
+                if (false) {
                     cout
                     << "\n" << setw(FROSCH_OUTPUT_INDENT) << " "
                     << setw(89) << "-----------------------------------------------------------------------------------------"

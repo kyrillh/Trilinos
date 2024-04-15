@@ -121,7 +121,9 @@ int main(int argc, char *argv[])
     My_CLP.setOption("DIM",&Dimension,"Dimension.");
     int Overlap = 0;
     My_CLP.setOption("O",&Overlap,"Overlap.");
-    string xmlFile = "ParameterList.xml";
+    /* string xmlFile = "ParameterList.xml"; */
+    /* string xmlFile = "ParameterLists/ParameterList_GDSWPreconditioner_ILU.xml"; */
+    string xmlFile = "ParameterLists/ParameterList_TwoLevelPreconditioner_IPOUHarmonic_GDSW_ILU.xml";
     My_CLP.setOption("PLIST",&xmlFile,"File name of the parameter list.");
     bool useepetra = false;
     My_CLP.setOption("USEEPETRA","USETPETRA",&useepetra,"Use Epetra infrastructure for the linear algebra.");
