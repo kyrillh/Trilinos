@@ -42,7 +42,10 @@
 #ifndef _FROSCH_RGDSWINTERFACEPARTITIONOFUNITY_DEF_HPP
 #define _FROSCH_RGDSWINTERFACEPARTITIONOFUNITY_DEF_HPP
 
+#include "FROSch_Output.h"
+#include "Teuchos_ScalarTraitsDecl.hpp"
 #include <FROSch_RGDSWInterfacePartitionOfUnity_decl.hpp>
+#include <vector>
 
 
 namespace FROSch {
@@ -139,25 +142,110 @@ namespace FROSch {
         }
 
         // Build Partition Of Unity Vectors
-        XMapPtr serialInterfaceMap = MapFactory<LO,GO,NO>::Build(this->DDInterface_->getNodesMap()->lib(),numInterfaceDofs,0,this->SerialComm_);
+        XMapPtr serialInterfaceMap = MapFactory<LO, GO, NO>::Build(this->DDInterface_->getNodesMap()->lib(),
+                                                                   numInterfaceDofs, 0, this->SerialComm_);
 
-        if (UseRoots_ && Roots_->getNumEntities()>0) {
-            XMultiVectorPtr tmpVector = MultiVectorFactory<SC,LO,GO,NO>::Build(serialInterfaceMap,Roots_->getNumEntities());
+        int dimension = this->DDInterface_->getDimension();
 
-            // Loop over EntitySetVector_
-            for (UN i=0; i<EntitySetVector_.size(); i++) {
-                // Loop over entities
-                for (UN j=0; j<EntitySetVector_[i]->getNumEntities(); j++) {
+        if (UseRoots_ && Roots_->getNumEntities() > 0) {
+            XMultiVectorPtr tmpVector =
+                MultiVectorFactory<SC, LO, GO, NO>::Build(serialInterfaceMap, Roots_->getNumEntities());
+
+            // Loop over EntitySetVector_ (Set of e.g. vertices, edges or faces)
+            for (UN i = 0; i < EntitySetVector_.size(); i++) {
+                // Loop over entities (e.g. an individual vertex)
+                for (UN j = 0; j < EntitySetVector_[i]->getNumEntities(); j++) {
                     InterfaceEntityPtr tmpEntity = EntitySetVector_[i]->getEntity(j);
+                    // Root ID is -1 for all entities that are not in the lowest level of the entity set hierarchy e.g. edges here in 2D RGDSW (each edge ends in two vertices)
+                    // For "real" root entities the ID indexes the entities in ascending order.
                     LO rootID = tmpEntity->getRootID();
                     UN numRoots = tmpEntity->getRoots()->getNumEntities();
-                    if (rootID==-1) {
-                        FROSCH_ASSERT(numRoots!=0,"rootID==-1 but numRoots==0!");
-                        for (UN m=0; m<numRoots; m++) {
+                    std::vector<SC> distancesVectorRoot(tmpEntity->getNumNodes(), numeric_limits<SC>::max());
+                    std::vector<SC> distancesVectorDirichlet(tmpEntity->getNumNodes(), numeric_limits<SC>::max());
+
+                    bool isDirichletEntity = false;
+                    int dirichletNodeID = -1;
+
+                    UN dofsPerNode = tmpEntity->getDofsPerNode();
+                    UN length = tmpEntity->getNumNodes();
+
+                    if (rootID == -1 && numRoots == 1) {
+                        for (UN j = 0; j < length; j++) {
+                            UN itmp = length - 1 - j;
+                            UN k = 0;
+                            while (k < dofsPerNode) {
+                                GO dofGlobal = tmpEntity->getGlobalDofID(itmp, k);
+                                if (binary_search(this->dirichletNodes_.begin(), this->dirichletNodes_.end(),
+                                                  dofGlobal)) {
+                                    dirichletNodeID = itmp;
+                                    break;
+                                }
+                                k++;
+                            }
+                        }
+
+                        if (dirichletNodeID != -1) {
+                            isDirichletEntity = true;
+                        }
+                   }
+                    if (isDirichletEntity) {
+
+                        InterfaceEntityPtr tmpRoot = tmpEntity->getRoots()->getEntity(0);
+                        LO index = tmpRoot->getRootID();
+                        SCVecPtr CN(dimension);
+                        SCVecPtr DN(dimension);
+                        for (UN k = 0; k < dimension; k++) {
+                            // Only have one node in 2D RGDSW roots
+                            CN[k] = nodeList->getData(k)[tmpRoot->getLocalNodeID(0)];
+                            DN[k] = nodeList->getData(k)[tmpEntity->getLocalNodeID(dirichletNodeID)];
+                        }
+                        for (UN k = 0; k < tmpEntity->getNumNodes(); k++) {
+                            SC distanceRoot = ScalarTraits<SC>::zero();
+                            SC distanceDirichlet = ScalarTraits<SC>::zero();
+                            // Compute quadratic distance
+                            for (UN l = 0; l < dimension; l++) {
+                                distanceRoot += (nodeList->getData(l)[tmpEntity->getLocalNodeID(k)] - CN[l]) *
+                                                (nodeList->getData(l)[tmpEntity->getLocalNodeID(k)] - CN[l]);
+                                distanceDirichlet += (nodeList->getData(l)[tmpEntity->getLocalNodeID(k)] - DN[l]) *
+                                                     (nodeList->getData(l)[tmpEntity->getLocalNodeID(k)] - DN[l]);
+                            }
+
+                            // Compute inverse euclidean distance
+                            distanceRoot = sqrt(distanceRoot);
+                            distanceDirichlet = sqrt(distanceDirichlet);
+                            // DistancesVector_[k][i] = distance from root i to node k
+                            // Here we only need the distance from the current root (tmpRoot) to each node
+                            distancesVectorRoot[k] = min(distancesVectorRoot[k], distanceRoot);
+                            distancesVectorDirichlet[k] = min(distancesVectorDirichlet[k], distanceDirichlet);
+                        }
+                        for (UN k = 0; k < tmpEntity->getNumNodes(); k++) {
+                            distancesVectorRoot[k] = ScalarTraits<SC>::one() / distancesVectorRoot[k];
+                            distancesVectorDirichlet[k] = ScalarTraits<SC>::one() / distancesVectorDirichlet[k];
+                        }
+
+                        for (UN k = 0; k < tmpEntity->getNumNodes(); k++) {
+                            if (k == dirichletNodeID) {
+                                for (UN l = 0; l < dofsPerNode; l++) {
+                                    tmpVector->replaceLocalValue(tmpEntity->getGammaDofID(k, l), index,
+                                                                 ScalarTraits<SC>::zero());
+                                }
+                            } else {
+                                SC value = distancesVectorRoot.at(k) /
+                                           (distancesVectorRoot.at(k) + distancesVectorDirichlet.at(k));
+                                for (UN l = 0; l < dofsPerNode; l++) {
+                                    tmpVector->replaceLocalValue(tmpEntity->getGammaDofID(k, l), index,
+                                                                 value * ScalarTraits<SC>::one());
+                                }
+                            }
+                       }
+
+                    } else if (rootID == -1) {
+                        FROSCH_ASSERT(numRoots != 0, "rootID==-1 but numRoots==0!");
+                        for (UN m = 0; m < numRoots; m++) {
                             InterfaceEntityPtr tmpRoot = tmpEntity->getRoots()->getEntity(m);
                             LO index = tmpRoot->getRootID();
                             // Offspring: loop over nodes
-                            for (UN l=0; l<tmpEntity->getNumNodes(); l++) {
+                            for (UN l = 0; l < tmpEntity->getNumNodes(); l++) {
                                 SC value = tmpEntity->getDistanceToRoot(l,m)/tmpEntity->getDistanceToRoot(l,numRoots);
                                 for (UN k=0; k<dofsPerNode; k++) {
                                     tmpVector->replaceLocalValue(tmpEntity->getGammaDofID(l,k),index,value*ScalarTraits<SC>::one());
@@ -176,8 +264,7 @@ namespace FROSch {
             }
             this->LocalPartitionOfUnity_[0] = tmpVector;
         }
-
-        return 0;
+       return 0;
     }
 
 }

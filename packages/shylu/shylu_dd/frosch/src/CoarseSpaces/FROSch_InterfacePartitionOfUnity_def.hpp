@@ -95,6 +95,11 @@ namespace FROSch {
     {
         return DDInterface_;
     }
+
+   template <class SC, class LO, class GO, class NO> void InterfacePartitionOfUnity<SC, LO, GO, NO>::passDirichletNodes(GOVecPtr dirichletNodes) {
+        dirichletNodes_ = dirichletNodes;
+    }
+
 }
 
 #endif

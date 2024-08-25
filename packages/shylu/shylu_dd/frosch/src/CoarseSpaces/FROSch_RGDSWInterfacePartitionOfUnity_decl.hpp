@@ -60,6 +60,7 @@ namespace FROSch {
 
         using CommPtr                       = typename PartitionOfUnity<SC,LO,GO,NO>::CommPtr;
 
+        using SCVecPtr              = ArrayRCP<SC>;
         using XMap                          = typename PartitionOfUnity<SC,LO,GO,NO>::XMap;
         using XMapPtr                       = typename PartitionOfUnity<SC,LO,GO,NO>::XMapPtr;
         using ConstXMapPtr                  = typename PartitionOfUnity<SC,LO,GO,NO>::ConstXMapPtr;

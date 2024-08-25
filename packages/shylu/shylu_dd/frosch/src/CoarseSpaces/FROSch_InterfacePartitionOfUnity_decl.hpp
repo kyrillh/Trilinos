@@ -92,6 +92,7 @@ namespace FROSch {
         using GOVec                         = typename PartitionOfUnity<SC,LO,GO,NO>::GOVec;
         using GOVecView                     = typename PartitionOfUnity<SC,LO,GO,NO>::GOVecView;
 
+        using GOVecPtr                      = ArrayRCP<GO> ;
         using SCVecPtr                      = typename PartitionOfUnity<SC,LO,GO,NO>::SCVecPtr;
 
     public:
@@ -116,10 +117,15 @@ namespace FROSch {
         DDInterfacePtr getDDInterfaceNonConst() const;
         
         virtual int computePartitionOfUnity(ConstXMultiVectorPtr nodeList = null) = 0;
+   
+    void passDirichletNodes(GOVecPtr dirichletNodes);
 
     protected:
 
         DDInterfacePtr DDInterface_;
+
+        GOVecPtr dirichletNodes_ = null;
+
     };
 
 }

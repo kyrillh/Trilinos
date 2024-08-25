@@ -386,6 +386,7 @@ namespace FROSch {
                     }
                 }
 
+                interfacePartitionOfUnity->passDirichletNodes(dirichletBoundaryDofs);
                 interfacePartitionOfUnity->computePartitionOfUnity(nodeList);
                 PartitionOfUnity_ = interfacePartitionOfUnity;
             }
