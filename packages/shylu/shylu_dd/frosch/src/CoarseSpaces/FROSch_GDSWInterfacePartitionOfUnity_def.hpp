@@ -128,19 +128,29 @@ namespace FROSch {
     int GDSWInterfacePartitionOfUnity<SC,LO,GO,NO>::computePartitionOfUnity(ConstXMultiVectorPtr nodeList)
     {
         FROSCH_DETAILTIMER_START_LEVELID(computePartitionOfUnityTime,"GDSWInterfacePartitionOfUnity::computePartitionOfUnity");
-        // Interface
+        
+        // PURPOSE: Compute the GDSW (Generalized Dryja-Smith-Widlund) partition of unity functions.
+        // This function constructs coarse basis functions for each interface entity type
+        // (vertices, edges, faces) by assigning constant values of 1.0 to all nodes
+        // belonging to each entity. This creates a simple partition of unity where
+        // each entity contributes equally to the coarse space.
+
+        // STEP 1: Get interface dimensions and setup
         UN dofsPerNode = this->DDInterface_->getInterface()->getEntity(0)->getDofsPerNode();
         UN numInterfaceDofs = dofsPerNode*this->DDInterface_->getInterface()->getEntity(0)->getNumNodes();
 
+        // STEP 2: Build entity maps for parallel communication
+        // Create global maps for each entity type that will be used in the coarse space
         this->DDInterface_->buildEntityMaps(UseVertices_,
                                             UseShortEdges_,
                                             UseStraightEdges_,
                                             UseEdges_,
                                             UseFaces_,
-                                            false,
-                                            false);
+                                            false,  // Don't build roots map
+                                            false); // Don't build leafs map
 
-        // Maps
+        // STEP 3: Store entity sets and their maps for each enabled entity type
+        // Each entity type gets its own map for parallel communication
         if (UseVertices_) {
             Vertices_ = this->DDInterface_->getVertices();
             this->PartitionOfUnityMaps_[0] = Vertices_->getEntityMap();
@@ -166,6 +176,7 @@ namespace FROSch {
             this->PartitionOfUnityMaps_[4] = Faces_->getEntityMap();
         }
 
+        // STEP 4: Print configuration information (if verbose output enabled)
         if (this->Verbose_) {
             cout
             << "\n" << setw(FROSCH_OUTPUT_INDENT) << " "
@@ -201,15 +212,19 @@ namespace FROSch {
             << endl;
         }
 
-        // Build Partition Of Unity Vectors
+        // STEP 5: Build partition of unity vectors for each entity type
+        // Create a serial map for the interface DOFs (used for local computation)
         XMapPtr serialInterfaceMap = MapFactory<LO,GO,NO>::Build(this->DDInterface_->getNodesMap()->lib(),numInterfaceDofs,0,this->SerialComm_);
 
+        // STEP 5a: Build vertices partition of unity vectors
+        // Each vertex gets a constant value of 1.0 for all its nodes
         if (UseVertices_ && Vertices_->getNumEntities()>0) {
             XMultiVectorPtr tmpVector = MultiVectorFactory<SC,LO,GO,NO>::Build(serialInterfaceMap,Vertices_->getNumEntities());
 
             for (UN i=0; i<Vertices_->getNumEntities(); i++) {
                 for (UN j=0; j<Vertices_->getEntity(i)->getNumNodes(); j++) {
                     for (UN k=0; k<dofsPerNode; k++) {
+                        // Assign value 1.0 to all DOFs belonging to this vertex
                         tmpVector->replaceLocalValue(Vertices_->getEntity(i)->getGammaDofID(j,k),i,ScalarTraits<SC>::one());
                     }
                 }
@@ -218,12 +233,15 @@ namespace FROSch {
             this->LocalPartitionOfUnity_[0] = tmpVector;
         }
 
+        // STEP 5b: Build short edges partition of unity vectors
+        // Each short edge gets a constant value of 1.0 for all its nodes
         if (UseShortEdges_ && ShortEdges_->getNumEntities()>0) {
             XMultiVectorPtr tmpVector = MultiVectorFactory<SC,LO,GO,NO>::Build(serialInterfaceMap,ShortEdges_->getNumEntities());
 
             for (UN i=0; i<ShortEdges_->getNumEntities(); i++) {
                 for (UN j=0; j<ShortEdges_->getEntity(i)->getNumNodes(); j++) {
                     for (UN k=0; k<dofsPerNode; k++) {
+                        // Assign value 1.0 to all DOFs belonging to this short edge
                         tmpVector->replaceLocalValue(ShortEdges_->getEntity(i)->getGammaDofID(j,k),i,ScalarTraits<SC>::one());
                     }
                 }
@@ -232,12 +250,15 @@ namespace FROSch {
             this->LocalPartitionOfUnity_[1] = tmpVector;
         }
 
+        // STEP 5c: Build straight edges partition of unity vectors
+        // Each straight edge gets a constant value of 1.0 for all its nodes
         if (UseStraightEdges_ && StraightEdges_->getNumEntities()>0) {
             XMultiVectorPtr tmpVector = MultiVectorFactory<SC,LO,GO,NO>::Build(serialInterfaceMap,StraightEdges_->getNumEntities());
 
             for (UN i=0; i<StraightEdges_->getNumEntities(); i++) {
                 for (UN j=0; j<StraightEdges_->getEntity(i)->getNumNodes(); j++) {
                     for (UN k=0; k<dofsPerNode; k++) {
+                        // Assign value 1.0 to all DOFs belonging to this straight edge
                         tmpVector->replaceLocalValue(StraightEdges_->getEntity(i)->getGammaDofID(j,k),i,ScalarTraits<SC>::one());
                     }
                 }
@@ -245,12 +266,15 @@ namespace FROSch {
             this->LocalPartitionOfUnity_[2] = tmpVector;
         }
 
+        // STEP 5d: Build general edges partition of unity vectors
+        // Each edge gets a constant value of 1.0 for all its nodes
         if (UseEdges_ && Edges_->getNumEntities()>0) {
             XMultiVectorPtr tmpVector = MultiVectorFactory<SC,LO,GO,NO>::Build(serialInterfaceMap,Edges_->getNumEntities());
 
             for (UN i=0; i<Edges_->getNumEntities(); i++) {
                 for (UN j=0; j<Edges_->getEntity(i)->getNumNodes(); j++) {
                     for (UN k=0; k<dofsPerNode; k++) {
+                        // Assign value 1.0 to all DOFs belonging to this edge
                         tmpVector->replaceLocalValue(Edges_->getEntity(i)->getGammaDofID(j,k),i,ScalarTraits<SC>::one());
                     }
                 }
@@ -259,12 +283,15 @@ namespace FROSch {
             this->LocalPartitionOfUnity_[3] = tmpVector;
         }
 
+        // STEP 5e: Build faces partition of unity vectors
+        // Each face gets a constant value of 1.0 for all its nodes
         if (UseFaces_ && Faces_->getNumEntities()>0) {
             XMultiVectorPtr tmpVector = MultiVectorFactory<SC,LO,GO,NO>::Build(serialInterfaceMap,Faces_->getNumEntities());
 
             for (UN i=0; i<Faces_->getNumEntities(); i++) {
                 for (UN j=0; j<Faces_->getEntity(i)->getNumNodes(); j++) {
                     for (UN k=0; k<dofsPerNode; k++) {
+                        // Assign value 1.0 to all DOFs belonging to this face
                         tmpVector->replaceLocalValue(Faces_->getEntity(i)->getGammaDofID(j,k),i,ScalarTraits<SC>::one());
                     }
                 }

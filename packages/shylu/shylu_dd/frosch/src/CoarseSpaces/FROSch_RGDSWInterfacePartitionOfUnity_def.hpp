@@ -69,6 +69,7 @@ namespace FROSch {
         UN dofsPerNode = this->DDInterface_->getInterface()->getEntity(0)->getDofsPerNode();
         UN numInterfaceDofs = dofsPerNode*this->DDInterface_->getInterface()->getEntity(0)->getNumNodes();
 
+        // This is where roots, leaves, ancestors etc. are determined
         this->DDInterface_->buildEntityHierarchy();
 
         this->DDInterface_->computeDistancesToRoots(this->DDInterface_->getDimension(),nodeList,DistanceFunction_);
@@ -125,6 +126,7 @@ namespace FROSch {
                         FROSCH_ASSERT(numRoots!=0,"rootID==-1 but numRoots==0!");
                         for (UN m=0; m<numRoots; m++) {
                             InterfaceEntityPtr tmpRoot = tmpEntity->getRoots()->getEntity(m);
+                            // This determines which vector in the multivector is written to
                             LO index = tmpRoot->getRootID();
                             // Offspring: loop over nodes
                             for (UN l=0; l<tmpEntity->getNumNodes(); l++) {

@@ -49,9 +49,18 @@ namespace FROSch {
         IntVecVecPtr componentsSubdomains;
         IntVecVec componentsSubdomainsUnique;
 
+        // Builds the following lists:
+        // - componentsSubdomains: one entry for each node. Each entry is a list of subdomains that contains the node.
+        // - componentsSubdomainsUnique: one entry for each equivalence class in the subdomain. e.g. all nodes on an
+        // interface edge are condensed into an equivalence class belonging to the subdomains [1, 2]
         communicateLocalComponents(componentsSubdomains,componentsSubdomainsUnique);
 
-        identifyLocalComponents(componentsSubdomains,componentsSubdomainsUnique);
+        // Uses both of these lists to generate entity sets. An entity is a collection of nodes that can be grouped
+        // together in an equivalence class e.g. all the nodes on the interface edge between subdomains 1 and 2. Entity
+        // sets are built to gather all entities in which nodes belong to the same number of subdomains. Here first two
+        // entities are built, one for interior and one for interface nodes. Then the interface nodes are further placed
+        // into entity set's e.g. for vertices, edges and faces.
+        identifyLocalComponents(componentsSubdomains, componentsSubdomainsUnique);
     }
 
     template <class SC,class LO,class GO,class NO>
@@ -66,7 +75,12 @@ namespace FROSch {
         FROSCH_DETAILTIMER_START_LEVELID(resetGlobalDofsTime,"DDInterface::resetGlobalDofs");
         //if (Verbose_ && Verbosity_==All) cout << "FROSch::DDInterface : Resetting Global IDs" << endl;
 
-        // EntityVector
+        // PURPOSE: Update global DOF IDs for all entities when new DOF maps are provided.
+        // This is needed when the DOF numbering changes or when switching between
+        // different DOF orderings (e.g., node-wise vs. dimension-wise).
+
+        // STEP 1: Update global DOF IDs for all entities in EntitySetVector_
+        // EntitySetVector_[l] contains entities belonging to exactly l subdomains
         for (UN l=0; l<EntitySetVector_.size(); l++) {
             for (UN i=0; i<EntitySetVector_[l]->getNumEntities(); i++) {
                 for (UN j=0; j<EntitySetVector_[l]->getEntity(i)->getNumNodes(); j++) {
@@ -82,7 +96,8 @@ namespace FROSch {
             }
         }
 
-        // Interface
+        // STEP 2: Update global DOF IDs for Interface entities
+        // Interface entities contain nodes shared between multiple subdomains
         for (UN i=0; i<Interface_->getNumEntities(); i++) {
             for (UN j=0; j<Interface_->getEntity(i)->getNumNodes(); j++) {
                 LO localID = Interface_->getEntity(i)->getLocalNodeID(j);
@@ -96,7 +111,8 @@ namespace FROSch {
             }
         }
 
-        // Interior
+        // STEP 3: Update global DOF IDs for Interior entities
+        // Interior entities contain nodes belonging to only one subdomain
         for (UN i=0; i<Interior_->getNumEntities(); i++) {
             for (UN j=0; j<Interior_->getEntity(i)->getNumNodes(); j++) {
                 LO localID = Interior_->getEntity(i)->getLocalNodeID(j);
@@ -119,11 +135,22 @@ namespace FROSch {
         FROSCH_DETAILTIMER_START_LEVELID(removeDirichletNodesTime,"DDInterface::removeDirichletNodes");
         //if (Verbose_ && Verbosity_==All) cout << "FROSch::DDInterface : Removing Dirichlet Nodes from the domain decomposition interface" << endl;
 
-        // EntityVector
+        // PURPOSE: Remove nodes with Dirichlet boundary conditions from all interface entities.
+        // Dirichlet nodes are constrained and should not participate in the coarse space
+        // construction, so they are removed from the domain decomposition interface.
+
+        // STEP 1: Remove Dirichlet nodes from all entity sets
+        // Iterate through all entity sets organized by multiplicity
         for (UN l=0; l<EntitySetVector_.size(); l++) {
             EntitySetVector_[l]->removeNodesWithDofs(dirichletBoundaryDofs);
         }
+        
+        // STEP 2: Clean up empty entities that may have been created
+        // After removing Dirichlet nodes, some entities may become empty
         removeEmptyEntities();
+        
+        // STEP 3: Reset unique IDs for sorting
+        // Update unique IDs for all remaining entities to ensure proper sorting
         for (UN l=0; l<EntitySetVector_.size(); l++) {
             EntitySetVector_[l]->setUniqueIDToFirstGlobalNodeID();
         }
@@ -136,6 +163,12 @@ namespace FROSch {
         FROSCH_DETAILTIMER_START_LEVELID(divideUnconnectedEntitiesTime,"DDInterface::divideUnconnectedEntities");
         //if (Verbose_ && Verbosity_==All) cout << "FROSch::DDInterface : Decomposing unconnected interface components" << endl;
 
+        // PURPOSE: Split interface entities that are not properly connected based on matrix connectivity.
+        // This ensures that each interface entity forms a connected component, which is
+        // important for the effectiveness of domain decomposition methods.
+
+        // STEP 1: Extract interface DOF indices for connectivity analysis
+        // Create a list of global DOF IDs for all interface nodes
         GOVecPtr indicesGammaDofs(DofsPerNode_*Interface_->getEntity(0)->getNumNodes());
         for (UN k=0; k<DofsPerNode_; k++) {
             for (UN i=0; i<Interface_->getEntity(0)->getNumNodes(); i++) {
@@ -143,11 +176,14 @@ namespace FROSch {
             }
         }
 
+        // STEP 2: Create map and extract subdomain matrix for interface
+        // Extract the submatrix corresponding to interface DOFs for connectivity analysis
         const GO INVALID = Teuchos::OrdinalTraits<GO>::invalid();
         XMapPtr map = MapFactory<LO,GO,NO>::Build(matrix->getRowMap()->lib(),INVALID,indicesGammaDofs(),0,MpiComm_);
         matrix = FROSch::ExtractLocalSubdomainMatrix(matrix.getConst(),map.getConst(),ScalarTraits<SC>::one());
 
-        // Operate on hierarchy
+        // STEP 3: Divide unconnected entities in all entity sets
+        // Use matrix connectivity to split entities that are not connected
         for (UN i=0; i<EntitySetVector_.size(); i++) {
             EntitySetVector_[i]->divideUnconnectedEntities(matrix,MpiComm_->getRank());
         }
@@ -165,9 +201,12 @@ namespace FROSch {
         }
         */
 
+        // STEP 4: Clean up and finalize
+        // Remove any empty entities created during the division process
         removeEmptyEntities();
 
-        // We need to set the unique ID; otherwise, we cannot sort entities
+        // STEP 5: Reset unique IDs for proper sorting
+        // Update unique IDs for all entities to ensure they can be sorted correctly
         for (UN i=0; i<EntitySetVector_.size(); i++) {
             EntitySetVector_[i]->setUniqueIDToFirstGlobalNodeID();
         }
@@ -178,10 +217,20 @@ namespace FROSch {
     int DDInterface<SC,LO,GO,NO>::flagEntities(ConstXMultiVectorPtr nodeList)
     {
         FROSCH_DETAILTIMER_START_LEVELID(flagEntitiesTime,"DDInterface::flagEntities");
+        
+        // PURPOSE: Assign geometric flags to interface entities based on their properties.
+        // These flags (DefaultFlag, StraightFlag, ShortFlag, NodeFlag) are used
+        // later to classify entities into vertices, edges, and faces.
+
+        // STEP 1: Flag nodes and short entities
+        // Assign flags based on entity properties without geometric information
         for (UN l=0; l<EntitySetVector_.size(); l++) {
-            EntitySetVector_[l]->flagNodes();
-            EntitySetVector_[l]->flagShortEntities();
+            EntitySetVector_[l]->flagNodes();           // Flag single-node entities
+            EntitySetVector_[l]->flagShortEntities();  // Flag entities that are too short
         }
+        
+        // STEP 2: Flag straight entities (requires geometric information)
+        // Use node coordinates to identify straight entities (e.g., straight edges)
         if (!nodeList.is_null()) {
             for (UN l=0; l<EntitySetVector_.size(); l++) {
                 EntitySetVector_[l]->flagStraightEntities(Dimension_,nodeList);
@@ -196,6 +245,11 @@ namespace FROSch {
         FROSCH_DETAILTIMER_START_LEVELID(removeEmptyEntitiesTime,"DDInterface::removeEmptyEntities");
         //if (Verbose_ && Verbosity_==All) cout << "FROSch::DDInterface : Removing empty interface components" << endl;
 
+        // PURPOSE: Remove entities that have no nodes from all entity sets.
+        // Empty entities can be created during processing (e.g., after removing
+        // Dirichlet nodes) and should be cleaned up to maintain data integrity.
+
+        // Remove empty entities from all entity sets organized by multiplicity
         for (UN l=0; l<EntitySetVector_.size(); l++) {
             EntitySetVector_[l]->removeEmptyEntities();
         }
@@ -294,6 +348,12 @@ namespace FROSch {
         FROSCH_DETAILTIMER_START_LEVELID(buildEntityMapsTime,"DDInterface::buildEntityMaps");
         //if (Verbose_ && Verbosity_==All) cout << "FROSch::DDInterface : Building global interface component maps" << endl;
 
+        // PURPOSE: Build global maps for interface entities to enable parallel communication.
+        // These maps assign unique global IDs to entities across all processors,
+        // which is essential for coarse space construction and parallel operations.
+
+        // STEP 1: Build entity maps for each entity type based on requested flags
+        // Each entity set gets its own global map for parallel communication
         if (buildVerticesMap) Vertices_->buildEntityMap(NodesMap_);
         if (buildShortEdgesMap) ShortEdges_->buildEntityMap(NodesMap_);
         if (buildStraightEdgesMap) StraightEdges_->buildEntityMap(NodesMap_);
@@ -720,39 +780,60 @@ namespace FROSch {
         FROSCH_DETAILTIMER_START_LEVELID(communicateLocalComponentsTime,"DDInterface::communicateLocalComponents");
         //if (Verbose_ && Verbosity_==All) cout << "FROSch::DDInterface : Communicating nodes" << endl;
 
+        // PURPOSE: This function determines which subdomains each node belongs to in a domain decomposition.
+        // It communicates information across processors to identify shared nodes (interface nodes) and
+        // interior nodes. The result is stored in componentsSubdomains where each entry contains
+        // the list of subdomain IDs (processor ranks) that own each node.
+
+        // Handle Epetra compatibility issue with CreateOneToOneMap strategy
         if (NodesMap_->lib() == UseEpetra && CommStrategy_ == CreateOneToOneMap) {
             FROSCH_WARNING("FROSch::DDInterface",Verbose_,"CreateOneToOneMap communication strategy does not work for Epetra => Switching to CommCrsGraph.");
             CommStrategy_ = CommCrsGraph;
         }
 
-        // Different communication strategies
+        // Different communication strategies for determining subdomain ownership
         const GO INVALID = Teuchos::OrdinalTraits<GO>::invalid();
         switch (CommStrategy_) {
             case CommCrsMatrix:
                 {
+                    // STRATEGY 1: Use CRS Matrix for communication
+                    // This strategy creates a communication matrix where each row represents a node
+                    // and each column represents a subdomain. The matrix entries indicate ownership.
+                    
+                    // Create a unique map for nodes (removes duplicates across processors)
                     UniqueNodesMap_ = BuildUniqueMap<LO,GO,NO>(NodesMap_);
+                    
+                    // Create communication matrix with estimated 10 non-zeros per row
+                    // (assuming each node belongs to at most 10 subdomains)
                     RCP<Matrix<SC,LO,GO,NO> > commMat = MatrixFactory<SC,LO,GO,NO>::Build(NodesMap_,10);
                     RCP<Matrix<SC,LO,GO,NO> > commMatTmp = MatrixFactory<SC,LO,GO,NO>::Build(UniqueNodesMap_,10);
                     XExportPtr commExporter = ExportFactory<LO,GO,NO>::Build(NodesMap_,UniqueNodesMap_);
 
+                    // Insert processor rank (PID) for each local node into the communication matrix
                     Array<SC> one(1,ScalarTraits<SC>::one());
                     Array<GO> myPID(1,MpiComm_->getRank());
                     for (int i=0; i<NumMyNodes_; i++) {
+                        // For each local node, insert the current processor rank
                         commMat->insertGlobalValues(NodesMap_->getGlobalElement(i),myPID(),one());
                     }
+                    
+                    // Create domain map for the communication matrix
                     XMapPtr domainMap = MapFactory<LO,GO,NO>::Build(NodesMap_->lib(),INVALID,myPID(),0,NodesMap_->getComm());
 
+                    // Complete the matrix construction and perform communication
                     commMat->fillComplete(domainMap,NodesMap_);
-                    commMatTmp->doExport(*commMat,*commExporter,INSERT);
+                    commMatTmp->doExport(*commMat,*commExporter,INSERT);  // Export to unique map
                     commMatTmp->fillComplete(domainMap,UniqueNodesMap_);
                     commMat = MatrixFactory<SC,LO,GO,NO>::Build(NodesMap_,LO(0));
-                    commMat->doImport(*commMatTmp,*commExporter,INSERT);
+                    commMat->doImport(*commMatTmp,*commExporter,INSERT);  // Import back to original map
 
+                    // Extract subdomain information for each node
                     componentsSubdomains = IntVecVecPtr(NumMyNodes_);
 
                     ArrayView<const GO> indices;
                     ArrayView<const SC> values;
                     for (LO i=0; i<NumMyNodes_; i++) {
+                        // Get all processor ranks that own this node
                         commMat->getGlobalRowView(NodesMap_->getGlobalElement(i),indices,values);
                         componentsSubdomains[i].resize(indices.size());
                         for (LO j=0; j<indices.size(); j++) {
@@ -764,28 +845,37 @@ namespace FROSch {
 
             case CommCrsGraph:
                 {
+                    // STRATEGY 2: Use CRS Graph for communication (more memory efficient)
+                    // Similar to CommCrsMatrix but uses graph structure instead of matrix values
+                    
+                    // Create unique map for nodes
                     UniqueNodesMap_ = BuildUniqueMap<LO,GO,NO>(NodesMap_);
 
-                    XCrsGraphPtr commGraph = CrsGraphFactory<LO,GO,NO>::Build(NodesMap_,10); // AH 08/07/2019: Can we put 1 instead of 10 here?
-                    XCrsGraphPtr commGraphTmp = CrsGraphFactory<LO,GO,NO>::Build(UniqueNodesMap_,10); // We assume that any node is part of no more than 10 subdomains
+                    // Create communication graph with estimated 10 connections per node
+                    XCrsGraphPtr commGraph = CrsGraphFactory<LO,GO,NO>::Build(NodesMap_,10);
+                    XCrsGraphPtr commGraphTmp = CrsGraphFactory<LO,GO,NO>::Build(UniqueNodesMap_,10);
                     XExportPtr commExporter = ExportFactory<LO,GO,NO>::Build(NodesMap_,UniqueNodesMap_);
 
+                    // Insert processor rank for each local node
                     Array<GO> myPID(1,MpiComm_->getRank());
                     for (int i=0; i<NumMyNodes_; i++) {
                         commGraph->insertGlobalIndices(NodesMap_->getGlobalElement(i),myPID());
                     }
                     XMapPtr domainMap = MapFactory<LO,GO,NO>::Build(NodesMap_->lib(),INVALID,myPID(),0,NodesMap_->getComm());
 
-                    commGraph->fillComplete(domainMap,NodesMap_); // AH 08/07/2019: Can we remove some fillComplete?
+                    // Complete graph construction and perform communication
+                    commGraph->fillComplete(domainMap,NodesMap_);
                     commGraphTmp->doExport(*commGraph,*commExporter,INSERT);
                     commGraphTmp->fillComplete(domainMap,UniqueNodesMap_);
                     commGraph = CrsGraphFactory<LO,GO,NO>::Build(NodesMap_);
                     commGraph->doImport(*commGraphTmp,*commExporter,INSERT);
 
+                    // Extract subdomain information for each node
                     componentsSubdomains = IntVecVecPtr(NumMyNodes_);
 
                     ArrayView<const GO> indices;
                     for (LO i=0; i<NumMyNodes_; i++) {
+                        // Get all processor ranks connected to this node
                         commGraph->getGlobalRowView(NodesMap_->getGlobalElement(i),indices);
                         componentsSubdomains[i].resize(indices.size());
                         for (LO j=0; j<indices.size(); j++) {
@@ -797,9 +887,21 @@ namespace FROSch {
 
             case CreateOneToOneMap:
                 {
+                    // STRATEGY 3: Create one-to-one map with tie-breaking
+                    // This strategy uses a sophisticated tie-breaking mechanism to assign
+                    // each shared node to exactly one processor, creating a unique ownership
+                    
+                    // Create tie-breaking object that handles conflicts when multiple processors
+                    // claim ownership of the same node
                     RCP<LowerPIDTieBreak<LO,GO,NO> > lowerPIDTieBreak(new LowerPIDTieBreak<LO,GO,NO>(MpiComm_,NodesMap_,Dimension_,LevelID_));
+                    
+                    // Build unique map using tie-breaking strategy
                     UniqueNodesMap_ = BuildUniqueMap<LO,GO,NO>(NodesMap_,true,lowerPIDTieBreak);
+                    
+                    // Send ownership data back to original processors
                     lowerPIDTieBreak->sendDataToOriginalMap();
+                    
+                    // Get the final subdomain assignments
                     componentsSubdomains = lowerPIDTieBreak->getComponents();
                 }
                 break;
@@ -808,13 +910,26 @@ namespace FROSch {
                 FROSCH_ASSERT(false,"FROSch::DDInterface: Specify a valid communication strategy.");
         }
 
+        // Post-process the results: create unique sorted lists and handle edge cases
         componentsSubdomainsUnique = IntVecVec(NumMyNodes_);
         for (LO i=0; i<NumMyNodes_; i++) {
+            // Sort and remove duplicates from the subdomain list for each node
             sortunique(componentsSubdomains[i]);
-            if (componentsSubdomains[i].size() == 0) componentsSubdomains[i].push_back(MpiComm_->getRank()); // For Tpetra this is empty if the repeatedMap is already unique. In this case, we have to add the local rank. Otherwise, we obtain nodes with multiplicity 0.
+            
+            // Handle special case: if no subdomains are found (shouldn't happen in normal cases),
+            // assign the node to the current processor
+            if (componentsSubdomains[i].size() == 0) {
+                componentsSubdomains[i].push_back(MpiComm_->getRank());
+            }
+            
+            // Store the processed result
             componentsSubdomainsUnique[i] = componentsSubdomains[i];
-//            if (MpiComm_->getRank() == 0) cout << MpiComm_->getRank() << ": " << i << " " << componentsSubdomains[i] << endl;
         }
+
+        // Sort the unique components list globally
+        // This now contains one entry for each unique equivalence class in the subdomain e.g. an interface edge between
+        // processors 1 and 2 will be contained here as a single entry [1, 2]. In contrast, componentsSubdomains will
+        // contain such entries for each node in the interface edge.
         sortunique(componentsSubdomainsUnique);
 
         return 0;
@@ -827,33 +942,52 @@ namespace FROSch {
         FROSCH_DETAILTIMER_START_LEVELID(identifyLocalComponentsTime,"DDInterface::identifyLocalComponents");
         //if (Verbose_ && Verbosity_==All) cout << "FROSch::DDInterface : Classifying interface components based on equivalence classes" << endl;
 
-        // Hier herausfinden, ob Ecke, Kante oder Fläche
+        // PURPOSE: This function classifies nodes into interface components (vertices, edges, faces) based on
+        // their subdomain multiplicity. It groups nodes with the same subdomain membership into equivalence
+        // classes and creates the appropriate interface entities.
+
+        // STEP 1: Analyze equivalence classes and determine multiplicity
+        // componentsSubdomainsUnique contains unique combinations of subdomain IDs (equivalence classes)
+        // Each equivalence class represents nodes that belong to the same set of subdomains
         UNVecPtr componentsMultiplicity(componentsSubdomainsUnique.size());
-        IntVecVecPtr components(componentsSubdomainsUnique.size());
-        IntVecVecPtr componentsGamma(componentsSubdomainsUnique.size());
+        IntVecVecPtr components(componentsSubdomainsUnique.size());        // Local node indices for each equivalence class
+        IntVecVecPtr componentsGamma(componentsSubdomainsUnique.size());    // Interface node indices for each equivalence class
         UN maxMultiplicity = 0;
+        
+        // Calculate multiplicity (number of subdomains) for each equivalence class
         for (UN i=0; i<componentsSubdomainsUnique.size(); i++) {
             componentsMultiplicity[i] = componentsSubdomainsUnique[i].size();
             maxMultiplicity = max(maxMultiplicity,componentsMultiplicity[i]);
         }
+        
+        // Create EntitySetVector indexed by multiplicity (0 to maxMultiplicity)
+        // EntitySetVector[i] contains all entities that belong to exactly i subdomains
         EntitySetVector_ = EntitySetPtrVecPtr(maxMultiplicity+1);
         for (UN i=0; i<maxMultiplicity+1; i++) {
             EntitySetVector_[i].reset(new EntitySet<SC,LO,GO,NO>(DefaultType));
         }
 
+        // STEP 2: Map each node to its equivalence class
+        // For each local node, find which equivalence class it belongs to
         typename IntVecVec::iterator classIterator;
         LOVecPtr localComponentIndices(NumMyNodes_);
         for (int i=0; i<NumMyNodes_; i++) {
+            // Use binary search to find the equivalence class for this node's subdomain list
             classIterator = lower_bound(componentsSubdomainsUnique.begin(),componentsSubdomainsUnique.end(),componentsSubdomains[i]);
             localComponentIndices[i] = classIterator - componentsSubdomainsUnique.begin();
         }
 
+        // STEP 3: Create Interior and Interface entities
+        // Interior: nodes belonging to only one subdomain (multiplicity = 1)
+        // Interface: nodes belonging to multiple subdomains (multiplicity > 1)
         LO tmp1 = 0; // The interface and interior have multiplicity 0 in our construction
         int *tmp2 = NULL;
         RCP<InterfaceEntity<SC,LO,GO,NO> > interior(new InterfaceEntity<SC,LO,GO,NO>(InteriorType,DofsPerNode_,tmp1,tmp2));
         RCP<InterfaceEntity<SC,LO,GO,NO> > interface(new InterfaceEntity<SC,LO,GO,NO>(InterfaceType,DofsPerNode_,tmp1,tmp2));
+        
         for (LO i=0; i<NumMyNodes_; i++) {
             if (componentsMultiplicity[localComponentIndices[i]] == 1) {
+                // INTERIOR NODE: belongs to only one subdomain
                 LO nodeIDI = interior->getNumNodes();
                 LO nodeIDLocal = i;
                 GO nodeIDGlobal = NodesMap_->getGlobalElement(nodeIDLocal);
@@ -867,6 +1001,7 @@ namespace FROSch {
                 }
                 interior->addNode(nodeIDI,nodeIDLocal,nodeIDGlobal,DofsPerNode_,dofsI,dofsLocal,dofsGlobal);
             } else {
+                // INTERFACE NODE: belongs to multiple subdomains
                 FROSCH_ASSERT(componentsMultiplicity[localComponentIndices[i]]>1,"FROSch::DDInterface: There cannot be any nodes with multiplicity 0.");
                 LO nodeIDGamma = interface->getNumNodes();
                 LO nodeIDLocal = i;
@@ -881,15 +1016,22 @@ namespace FROSch {
                 }
                 interface->addNode(nodeIDGamma,nodeIDLocal,nodeIDGlobal,DofsPerNode_,dofsGamma,dofsLocal,dofsGlobal);
 
+                // Track which local nodes belong to each equivalence class
                 components[localComponentIndices[i]].push_back(i);
                 componentsGamma[localComponentIndices[i]].push_back(interface->getNumNodes()-1);
             }
         }
+        
+        // Add the interior and interface entities to the entity sets
         Interior_->addEntity(interior);
         Interface_->addEntity(interface);
 
+        // STEP 4: Create interface entities for each equivalence class
+        // Each equivalence class becomes an interface entity (vertex, edge, or face)
         for (UN i=0; i<componentsSubdomainsUnique.size(); i++) {
             FROSCH_ASSERT(componentsMultiplicity[i]>0,"FROSch::DDInterface: There cannot be any component with multiplicity 0.");
+            
+            // Create interface entity with the subdomain information
             RCP<InterfaceEntity<SC,LO,GO,NO> > tmpEntity(new InterfaceEntity<SC,LO,GO,NO>(VertexType,DofsPerNode_,componentsMultiplicity[i],&(componentsSubdomainsUnique[i][0])));
             LO nodeIDGamma;
             LO nodeIDLocal;
@@ -898,13 +1040,14 @@ namespace FROSch {
             LOVecPtr dofsLocal(DofsPerNode_);
             GOVecPtr dofsGlobal(DofsPerNode_);
 
+            // Sort the local node indices for this equivalence class
             sortunique(components[i]);
 
-            //
+            // Add all nodes belonging to this equivalence class to the interface entity
             for (UN j=0; j<components[i].size(); j++) {
-                nodeIDGamma = componentsGamma[i][j];
-                nodeIDLocal = components[i][j];
-                nodeIDGlobal = NodesMap_->getGlobalElement(nodeIDLocal);
+                nodeIDGamma = componentsGamma[i][j];      // Interface node ID
+                nodeIDLocal = components[i][j];            // Local node ID
+                nodeIDGlobal = NodesMap_->getGlobalElement(nodeIDLocal);  // Global node ID
                 for (UN k=0; k<DofsPerNode_; k++) {
                     dofsGamma[k] = DofsPerNode_*nodeIDGamma+k;
                     dofsLocal[k] = DofsPerNode_*nodeIDLocal+k;
@@ -913,14 +1056,19 @@ namespace FROSch {
 
                 tmpEntity->addNode(nodeIDGamma,nodeIDLocal,nodeIDGlobal,DofsPerNode_,dofsGamma,dofsLocal,dofsGlobal);
             }
+            
+            // Set entity type to default (will be refined later in sortVerticesEdgesFaces)
             tmpEntity->resetEntityType(DefaultType);
+            
+            // Add entity to the appropriate EntitySet based on multiplicity
             EntitySetVector_[componentsMultiplicity[i]]->addEntity(tmpEntity);
         }
 
-        // Remove the empty entity stemming from the interior nodes
+        // STEP 5: Clean up and finalize
+        // Remove any empty entities that might have been created
         removeEmptyEntities();
 
-        // We need to set the unique ID; otherwise, we cannot sort entities
+        // Set unique IDs for sorting (required for later operations)
         for (UN i=0; i<EntitySetVector_.size(); i++) {
             EntitySetVector_[i]->setUniqueIDToFirstGlobalNodeID();
         }

@@ -86,7 +86,12 @@ namespace FROSch {
     template<class SC,class LO,class GO,class NO>
     int EntitySet<SC,LO,GO,NO>::buildEntityMap(ConstXMapPtr localToGlobalNodesMap)
     {
+        // PURPOSE: Create a global map for entities in this entity set.
+        // This map assigns unique global IDs to entities across all processors,
+        // enabling parallel communication and coarse space construction.
+
         if (!EntityMapIsUpToDate_) {
+            // STEP 1: Gather entity counts from all processors
             LO localNumberEntities = getNumEntities();
             LO globalNumberEntities = 0; // AH 10/13/2017: Can we stick with LO here
             LO maxLocalNumberEntities = 0;
@@ -96,34 +101,43 @@ namespace FROSch {
             GOVec localToGlobalVector(0);
             const GO INVALID = Teuchos::OrdinalTraits<GO>::invalid();
             if (globalNumberEntities>0) {
-                // Set the Unique iD
+                // STEP 2: Set unique IDs and create local entity mapping
+                // Each entity gets a unique ID based on its first global node ID
                 setUniqueIDToFirstGlobalNodeID();
 
+                // Create array of entity unique IDs (shifted by +1 to avoid 0)
                 GOVec entities(maxLocalNumberEntities);
                 for (UN i=0; i<getNumEntities(); i++) {
                     entities[i] = getEntity(i)->getUniqueID()+1;
                     getEntity(i)->setLocalID(i);
                 }
+                
+                // Create temporary map for entity communication
                 XMapPtr entityMapping = MapFactory<LO,GO,NO>::Build(localToGlobalNodesMap->lib(),INVALID,entities(),0,localToGlobalNodesMap->getComm());
 
+                // STEP 3: Gather all entity IDs from all processors
                 GOVec allEntities(maxLocalNumberEntities*localToGlobalNodesMap->getComm()->getSize(),0);
                 //localToGlobalNodesMap->getComm().GatherAll(&(entities->at(0)),&(allEntities->at(0)),maxLocalNumberEntities);
                 gatherAll(*localToGlobalNodesMap->getComm(),maxLocalNumberEntities,entities.getRawPtr(),maxLocalNumberEntities*localToGlobalNodesMap->getComm()->getSize(),allEntities.getRawPtr());
 
+                // STEP 4: Remove duplicates and create global numbering
                 allEntities.push_back(0); // Um sicherzugehen, dass der erste Eintrag nach sort_unique eine 0 ist.
 
                 sortunique(allEntities);
 
+                // STEP 5: Create local-to-global mapping for entities
                 localToGlobalVector.resize(localNumberEntities);
                 int LocalID;
                 for (UN i=1; i<allEntities.size(); i++) { // Wir fangen bei 1 an, weil wir am Anfang 1 auf die ID addiert haben
                     LocalID = entityMapping->getLocalElement(allEntities[i]);
                     if ( LocalID != -1) {
-                        localToGlobalVector[LocalID] = i-1;
+                        localToGlobalVector[LocalID] = i-1; // Subtract 1 to get back to original numbering
                     }
                 }
 
             }
+            
+            // STEP 6: Create final entity map and mark as up-to-date
             EntityMap_ = MapFactory<LO,GO,NO>::Build(localToGlobalNodesMap->lib(),INVALID,localToGlobalVector(),0,localToGlobalNodesMap->getComm());
             EntityMapIsUpToDate_ = true;
         }

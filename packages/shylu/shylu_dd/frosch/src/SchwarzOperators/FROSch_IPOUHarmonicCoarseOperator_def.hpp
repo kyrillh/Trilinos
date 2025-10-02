@@ -293,6 +293,8 @@ namespace FROSch {
 
             // Compute Interface Partition of Unity
             // AH: Can we get rid of the PartitionType_?
+            // The interface components are determined in the constructor of the InterfacePartitionOfUnity.
+            // See the functions communicateLocalComponents() and identifyLocalComponents() in DDInterface.
             InterfacePartitionOfUnityPtr interfacePartitionOfUnity;
             if (!coarseSpaceList->sublist("InterfacePartitionOfUnity").get("Type","GDSW").compare("GDSW")) {
                 coarseSpaceList->sublist("InterfacePartitionOfUnity").sublist("GDSW").set("Test Unconnected Interface",this->ParameterList_->get("Test Unconnected Interface",true));
@@ -345,6 +347,7 @@ namespace FROSch {
                 PartitionOfUnity_->computePartitionOfUnity(nodeList);
             } else {
                 if (this->ParameterList_->get("Remove Dirichlet Nodes",true)) interfacePartitionOfUnity->removeDirichletNodes(dirichletBoundaryDofs(),nodeList);
+                // This takes the EntitySetVector_ and sorts it into entity types: faces, edges, vertices.
                 interfacePartitionOfUnity->sortInterface(this->K_,nodeList);
 
                 // Construct Interface and Interior index sets
@@ -359,6 +362,18 @@ namespace FROSch {
                     }
                 }
 
+                interfacePartitionOfUnity->passDirichletNodes(dirichletBoundaryDofs);
+                // This calls the following functions:
+                // DDInterface_->buildEntityHierarchy();
+                // - Determines the ancestor-offspring-root relationships between entities.
+                // DDInterface_->computeDistancesToRoots(this->DDInterface_->getDimension(),nodeList,DistanceFunction_);
+                // - For each entity, computes the distance between the nodes in the entity and each root of the entity.
+                //   If the root is more than 1D, the distance is the minimum between current node and any node in the
+                //   root.
+                //   DDInterface_->buildEntityMaps();
+                //   - Build maps enumerating the interface entities within a set. This might have a bug since unique
+                //   ID's of entities are set to the ID of the first node within the entity. This is not guaranteed to
+                //   be unique [KH] Then
                 interfacePartitionOfUnity->computePartitionOfUnity(nodeList);
                 PartitionOfUnity_ = interfacePartitionOfUnity;
             }

@@ -208,6 +208,12 @@ namespace FROSch {
 
         IntVec SubdomainsVector_ = IntVec(0);
 
+        // This tree structure is ordered from bottom to top i.e. roots -> leaves. Interface entities with belonging to
+        // more subdomains are further down the tree i.e. are ancestors of entities belonging to less subdomains.
+        // This results in ancestors being subsets of offspring e.g. vertices -> edges -> faces.
+        // Roots are ancestors that themselves don't have ancestors. While ancestors are one level down the tree, roots
+        // are determined by going all the way down the tree e.g. roots of a face are the vertices around it while it's
+        // ancestors are the edges.
         EntitySetPtr Ancestors_;
         EntitySetPtr Offspring_;
         EntitySetPtr Roots_;

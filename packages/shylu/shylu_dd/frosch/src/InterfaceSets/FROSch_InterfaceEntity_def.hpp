@@ -207,6 +207,7 @@ namespace FROSch {
     {
         EntitySetPtr ancestors(new EntitySet<SC,LO,GO,NO>(*entitySet));
         IntVec tmpVector;
+        // Remove all entities that are not an ancestor, either because they have a lower or equal multiplicity (just being sure), or because they don't share nodes (the "normal" case)
         for (UN i=0; i<Multiplicity_; i++) {
             UN length = ancestors->getNumEntities();
             for (UN j=0; j<length; j++) {
@@ -256,6 +257,11 @@ namespace FROSch {
     template <class SC,class LO,class GO,class NO>
     typename InterfaceEntity<SC,LO,GO,NO>::EntitySetPtr InterfaceEntity<SC,LO,GO,NO>::findRoots()
     {
+        // PURPOSE: Recursively find the root entities (entities with no ancestors) in the hierarchy.
+        // Root entities are the "top-level" entities that have no parents in the inheritance tree.
+        // The hierarchy is ordered from bottom to top: roots -> leaves, where entities belonging
+        // to more subdomains are ancestors of entities belonging to fewer subdomains.
+        // This results in ancestors being subsets of offspring (e.g., vertices -> edges -> faces).
         if (Roots_->getNumEntities()) {
             FROSCH_ASSERT(Ancestors_->getNumEntities()!=0,"Ancestors_->getNumEntities()==0");
             return Roots_;
@@ -271,11 +277,13 @@ namespace FROSch {
                 Roots_->addEntitySet(tmpRoots);
             }
         }
+        // STEP 3: Remove duplicates and return results
         Roots_->sortUnique();
         if (Roots_->getNumEntities()) {
             FROSCH_ASSERT(Ancestors_->getNumEntities()!=0,"Ancestors_->getNumEntities()==0");
             return Roots_;
         } else {
+            // No roots found (this entity has no ancestors)
             return null;
         }
     }
