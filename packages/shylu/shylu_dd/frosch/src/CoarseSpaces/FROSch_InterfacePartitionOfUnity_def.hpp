@@ -64,6 +64,11 @@ namespace FROSch {
     {
         return DDInterface_;
     }
+
+    template <class SC,class LO,class GO,class NO>
+    int InterfacePartitionOfUnity<SC,LO,GO,NO>::addBoundaryEntities(GOVecView boundaryDofs, ConstXMatrixPtr matrix, enum BoundaryType type){
+        DDInterface_->addBoundaryEntities(boundaryDofs, matrix, type);
+    }
 }
 
 #endif

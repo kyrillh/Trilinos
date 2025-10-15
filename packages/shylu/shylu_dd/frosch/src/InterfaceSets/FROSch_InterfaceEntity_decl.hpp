@@ -27,7 +27,7 @@ namespace FROSch {
               class NO = Tpetra::KokkosClassic::DefaultNode::DefaultNodeType>
     class EntitySet;
 
-    enum EntityType {DefaultType,VertexType,EdgeType,FaceType,InteriorType,InterfaceType};
+    enum EntityType {DefaultType,VertexType,EdgeType,FaceType,InteriorType,InterfaceType,BoundaryType};
     enum EntityFlag {DefaultFlag,StraightFlag,ShortFlag,NodeFlag};
     enum DistanceFunction {ConstantDistanceFunction,InverseEuclideanDistanceFunction};
 

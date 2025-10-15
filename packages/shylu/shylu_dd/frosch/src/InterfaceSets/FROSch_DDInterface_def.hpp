@@ -10,6 +10,9 @@
 #ifndef _FROSCH_DDINTERFACE_DEF_HPP
 #define _FROSCH_DDINTERFACE_DEF_HPP
 
+#include "Teuchos_ArrayViewDecl.hpp"
+#include "Teuchos_VerboseObject.hpp"
+#include "Teuchos_VerbosityLevel.hpp"
 #include <FROSch_DDInterface_decl.hpp>
 #include <FROSch_EntitySet_def.hpp>
 #include <FROSch_ExtractSubmatrices_def.hpp>
@@ -157,9 +160,57 @@ namespace FROSch {
         return 0;
     }
 
-    template <class SC,class LO,class GO,class NO>
-    int DDInterface<SC,LO,GO,NO>::divideUnconnectedEntities(ConstXMatrixPtr matrix)
-    {
+    template <class SC, class LO, class GO, class NO>
+    int DDInterface<SC, LO, GO, NO>::addBoundaryEntities(GOVecView boundaryDofs, ConstXMatrixPtr matrix, enum BoundaryType type) {
+        // Add an entity for every connected section of Dirichlet boundary
+        // Entity sets built from the subdomain connectivity should be connected properly for most domain decompositions
+        // e.g. if an entity set is built from nodes belonging to subdomains [1, 2] then they will be connected
+        // properly, unless those two subdomains are adjacent in more than one disconnected locations. For the boundary,
+        // we need to explicitly check connectivity as done in divideUnconnectedEntities.
+ 
+        // For now we pretend that the boundary is not shared by any subdomains. Might need to change this later.
+        constexpr UN multiplicity = 1;
+        IntVec subdomains ({MpiComm_->getRank()});
+        // Add a single entity for each subdomain and then split it
+        RCP<InterfaceEntity<SC, LO, GO, NO>> tmpEntity(new InterfaceEntity<SC, LO, GO, NO>(
+            BoundaryType, DofsPerNode_, multiplicity, subdomains.data()));
+
+        const int numNodes = boundaryDofs.size()/DofsPerNode_;
+        for (LO i = 0; i < numNodes; i++) {
+            // ID within the current entity
+            LO nodeIDBndry = tmpEntity->getNumNodes();
+            // Global node ID assuming node-wise ordering
+            GO nodeIDGlobal = boundaryDofs[i * DofsPerNode_] / DofsPerNode_;
+            // ID local to the subdomain
+            LO nodeIDLocal = NodesMap_->getLocalElement(nodeIDGlobal);
+            LOVecPtr dofsI(DofsPerNode_);
+            LOVecPtr dofsLocal(DofsPerNode_);
+            GOVecPtr dofsGlobal(DofsPerNode_);
+            for (UN k = 0; k < DofsPerNode_; k++) {
+                dofsI[k] = DofsPerNode_ * nodeIDBndry + k;
+                dofsLocal[k] = DofsPerNode_ * nodeIDLocal + k;
+                dofsGlobal[k] = boundaryDofs[i * DofsPerNode_ + k];
+            }
+            tmpEntity->addNode(nodeIDBndry, nodeIDLocal, nodeIDGlobal, DofsPerNode_, dofsI, dofsLocal, dofsGlobal);
+        }
+        XMapPtr map = MapFactory<LO,GO,NO>::Build(matrix->getRowMap()->lib(),Teuchos::OrdinalTraits<GO>::invalid(),boundaryDofs(),0,MpiComm_);
+        matrix = FROSch::ExtractLocalSubdomainMatrix(matrix.getConst(),map.getConst(),ScalarTraits<SC>::one());
+        if (tmpEntity->getNumNodes() > 0) {
+            if (type == Dirichlet) {
+                Dirichlet_->addEntity(tmpEntity);
+                // Split the single Dirichlet entity into multiple entities such that each forms a connected subset
+                Dirichlet_->divideUnconnectedEntities(matrix, MpiComm_->getRank());
+            } else if (type == DoNothing) {
+                DoNothing_->addEntity(tmpEntity);
+                DoNothing_->divideUnconnectedEntities(matrix, MpiComm_->getRank());
+            }
+        }
+        // Add the boundary entities to this->Interface_
+        // Rebuild Interface_ and Interior_ entities 
+    }
+
+    template <class SC, class LO, class GO, class NO>
+    int DDInterface<SC, LO, GO, NO>::divideUnconnectedEntities(ConstXMatrixPtr matrix) {
         FROSCH_DETAILTIMER_START_LEVELID(divideUnconnectedEntitiesTime,"DDInterface::divideUnconnectedEntities");
         //if (Verbose_ && Verbosity_==All) cout << "FROSch::DDInterface : Decomposing unconnected interface components" << endl;
 
@@ -613,11 +664,13 @@ namespace FROSch {
         // Build hierarchy
         for (UN i=0; i<EntitySetVector_.size(); i++) {
             for (UN j=i+1; j<EntitySetVector_.size(); j++) {
+                // Look for ancestors in the sets with higher multiplicity -> edge is ancestor of a face
+                // This also sets the offspring of all the ancestor entities -> we only need to traverse the tree once.
                 EntitySetVector_[i]->findAncestorsInSet(EntitySetVector_[j]);
             }
         }
 
-        // Find roots
+        // Find roots i.e. ancestors that don't have ancestors themselves
         for (UN i=0; i<EntitySetVector_.size(); i++) {
             EntitySetPtr tmpRoots = EntitySetVector_[i]->findRoots();
             Roots_->addEntitySet(tmpRoots);
@@ -625,7 +678,7 @@ namespace FROSch {
         Roots_->sortUnique();
         Roots_->setRootID();
 
-        // Find Leafs
+        // Find Leafs i.e. offspring that don't have offspring themselves
         for (UN i=0; i<EntitySetVector_.size(); i++) {
             EntitySetPtr tmpLeafs = EntitySetVector_[i]->findLeafs();
             Leafs_->addEntitySet(tmpLeafs);
@@ -735,6 +788,18 @@ namespace FROSch {
     typename DDInterface<SC,LO,GO,NO>::EntitySetConstPtr & DDInterface<SC,LO,GO,NO>::getInterior() const
     {
         return Interior_;
+    }
+ 
+    template <class SC,class LO,class GO,class NO>
+    typename DDInterface<SC,LO,GO,NO>::EntitySetConstPtr & DDInterface<SC,LO,GO,NO>::getDirichlet() const
+    {
+        return Dirichlet_;
+    }
+ 
+    template <class SC,class LO,class GO,class NO>
+    typename DDInterface<SC,LO,GO,NO>::EntitySetConstPtr & DDInterface<SC,LO,GO,NO>::getDoNothing() const
+    {
+        return DoNothing_;
     }
 
     template <class SC,class LO,class GO,class NO>

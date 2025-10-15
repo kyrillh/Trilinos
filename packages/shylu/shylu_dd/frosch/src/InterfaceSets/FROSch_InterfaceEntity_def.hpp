@@ -10,17 +10,11 @@
 #ifndef _FROSCH_INTERFACEENTITY_DEF_HPP
 #define _FROSCH_INTERFACEENTITY_DEF_HPP
 
-#include "FROSch_Output.h"
 #include "FROSch_Tools_decl.hpp"
 #include "Kokkos_MathematicalConstants.hpp"
-#include <FROSch_InterfaceEntity_decl.hpp>
-#include <FROSch_ExtractSubmatrices_def.hpp>
-#include <FROSch_Tools_def.hpp>
 #include "Teuchos_DefaultMpiComm.hpp"
-#include "Teuchos_ScalarTraitsDecl.hpp"
 #include "Teuchos_VerboseObject.hpp"
 #include "Teuchos_VerbosityLevel.hpp"
-#include "Xpetra_MultiVector_decl.hpp"
 #include <FROSch_InterfaceEntity_decl.hpp>
 
 
@@ -359,33 +353,49 @@ namespace FROSch {
         return 0;
     }
 
-    template <class SC,class LO,class GO,class NO>
-    typename InterfaceEntity<SC,LO,GO,NO>::InterfaceEntityPtr InterfaceEntity<SC,LO,GO,NO>::divideEntity(ConstXMatrixPtr matrix,
-                                                                                                         int pID)
-    {
-        InterfaceEntityPtr entity(new InterfaceEntity<SC,LO,GO,NO>(Type_,DofsPerNode_,Multiplicity_,&(SubdomainsVector_[0])));
-
-        if (getNumNodes()>=2) {
+    template <class SC, class LO, class GO, class NO>
+    typename InterfaceEntity<SC, LO, GO, NO>::InterfaceEntityPtr
+    InterfaceEntity<SC, LO, GO, NO>::divideEntity(ConstXMatrixPtr matrix, int pID) {
+        InterfaceEntityPtr entity(
+            new InterfaceEntity<SC, LO, GO, NO>(Type_, DofsPerNode_, Multiplicity_, &(SubdomainsVector_[0])));
+        if (getNumNodes() >= 2) {
             sortByGlobalID();
-
             GOVecPtr mapVector(getNumNodes());
-            for (UN i=0; i<getNumNodes(); i++) {
+            for (UN i = 0; i < getNumNodes(); i++) {
+                // DofsGamma_ contains the dof IDs of dofs belonging to this node with a local enumeration of all dofs
+                // in the interface on this subdomain. Here we only take the first one since we are interested in node
+                // connectivity encoded in matrix, which is redundant across dofs for each node.
                 mapVector[i] = NodeVector_[i].DofsGamma_[0];
             }
-            XMatrixPtr localMatrix,mat1,mat2,mat3;
-            BuildSubmatrices(matrix,mapVector(),localMatrix,mat1,mat2,mat3);
+            // I -> inside entity. O -> outside entity.
+            XMatrixPtr matII, matIO, matOI, matOO;
+            // mapVector has been built to contain all dofs from this entity that lie on Gamma.
+            // matrix has been built to contain all dofs in this subdomain that lie on gamma.
+            // Here we split matrix into components contained in mapVector, outside of mapVector and coupling terms
+            // between the two. The subsequent iteration on matII serves to split this entity into two according to a
+            // direct connection with the first node.
+            BuildSubmatrices(matrix, mapVector(), matII, matIO, matOI, matOO);
 
-            XVectorPtr iterationVector = VectorFactory<SC,LO,GO,NO>::Build(localMatrix->getRowMap());
+            XVectorPtr iterationVector = VectorFactory<SC, LO, GO, NO>::Build(matII->getRowMap());
+            // This propagates non-zero entries to all nodes that are connected with the first node.
+            // Thus, the entity is split into a connected entity containing the first node and a, possibly partially,
+            // connected entity disconnected from the first node.
             iterationVector->getDataNonConst(0)[0] = ScalarTraits<SC>::one();
-            for (UN i=0; i<getNumNodes()-1; i++) {
-                localMatrix->apply(*iterationVector,*iterationVector);
+            for (UN i = 0; i < getNumNodes() - 1; i++) {
+                matII->apply(*iterationVector, *iterationVector);
             }
 
-            for (UN i=0; i<getNumNodes(); i++) {
-                if (fabs(iterationVector->getData(0)[i])<1.0e-10) {
+            Teuchos::Array<UN> nodesToDelete;
+            for (UN i = 0; i < getNumNodes(); i++) {
+                if (fabs(iterationVector->getData(0)[i]) < 1.0e-10) {
                     entity->addNode(getNode(i));
-                    removeNode(i);
+                    // Can't delete nodes here as this would break the order in this->NodeVector_
+                    nodesToDelete.push_back(i);
                 }
+            }
+            for (UN i = 0; i < nodesToDelete.size(); i++) {
+                // After every remove there is one node less. Shift the index by i to compensate.
+                removeNode(nodesToDelete[i] - i);
             }
         }
         return entity;

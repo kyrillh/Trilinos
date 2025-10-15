@@ -10,6 +10,8 @@
 #ifndef _FROSCH_IPOUHARMONICCOARSEOPERATOR_DEF_HPP
 #define _FROSCH_IPOUHARMONICCOARSEOPERATOR_DEF_HPP
 
+#include "FROSch_DDInterface_decl.hpp"
+#include "Teuchos_ArrayRCPDecl.hpp"
 #include <FROSch_IPOUHarmonicCoarseOperator_decl.hpp>
 #include <FROSch_ConstantPartitionOfUnity_def.hpp>
 #include <FROSch_GDSWInterfacePartitionOfUnity_def.hpp>
@@ -39,10 +41,11 @@ namespace FROSch {
                                                             ConstXMapPtrVecPtr dofsMaps,
                                                             ConstXMultiVectorPtr nullSpaceBasis,
                                                             ConstXMultiVectorPtr nodeList,
-                                                            GOVecPtr dirichletBoundaryDofs)
+                                                            GOVecPtr dirichletBoundaryDofs,
+                                                            GOVecPtr doNothingBoundaryDofs)
     {
         FROSCH_TIMER_START_LEVELID(initializeTime,"IPOUHarmonicCoarseOperator::initialize");
-        int ret = buildCoarseSpace(dimension,dofsPerNode,nodesMap,dofsMaps,nullSpaceBasis,dirichletBoundaryDofs,nodeList);
+        int ret = buildCoarseSpace(dimension,dofsPerNode,nodesMap,dofsMaps,nullSpaceBasis,dirichletBoundaryDofs,nodeList,doNothingBoundaryDofs);
         this->CoarseMap_ = this->assembleCoarseMap();
         this->assembleInterfaceCoarseSpace();
         this->buildCoarseSolveMap(this->AssembledInterfaceCoarseSpace_->getBasisMapUnique());
@@ -59,10 +62,11 @@ namespace FROSch {
                                                             ConstXMapPtrVecPtr2D repeatedDofMapsVec,
                                                             ConstXMultiVectorPtrVecPtr nullSpaceBasisVec,
                                                             ConstXMultiVectorPtrVecPtr nodeListVec,
-                                                            GOVecPtr2D dirichletBoundaryDofsVec)
+                                                            GOVecPtr2D dirichletBoundaryDofsVec,
+                                                            GOVecPtr2D doNothingBoundaryDofsVec)
     {
         FROSCH_TIMER_START_LEVELID(initializeTime,"IPOUHarmonicCoarseOperator::initialize");
-        buildCoarseSpace(dimension,dofsPerNodeVec,repeatedNodesMapVec,repeatedDofMapsVec,nullSpaceBasisVec,dirichletBoundaryDofsVec,nodeListVec);
+        buildCoarseSpace(dimension,dofsPerNodeVec,repeatedNodesMapVec,repeatedDofMapsVec,nullSpaceBasisVec,dirichletBoundaryDofsVec,nodeListVec,doNothingBoundaryDofsVec);
         this->CoarseMap_ = this->assembleCoarseMap();
         this->assembleInterfaceCoarseSpace();
         this->buildCoarseSolveMap(this->AssembledInterfaceCoarseSpace_->getBasisMapUnique());
@@ -166,14 +170,15 @@ namespace FROSch {
                                                                    ConstXMapPtrVecPtr dofsMaps,
                                                                    ConstXMultiVectorPtr nullSpaceBasis,
                                                                    GOVecPtr dirichletBoundaryDofs,
-                                                                   ConstXMultiVectorPtr nodeList)
+                                                                   ConstXMultiVectorPtr nodeList,
+                                                                   GOVecPtr doNothingBoundaryDofs)
     {
         FROSCH_DETAILTIMER_START_LEVELID(buildCoarseSpaceTime,"IPOUHarmonicCoarseOperator::buildCoarseSpace");
         FROSCH_ASSERT(dofsMaps.size()==dofsPerNode,"dofsMaps.size()!=dofsPerNode");
 
         // Das könnte man noch ändern
         // Todo: Check the lengths of the vectors against NumberOfBlocks_
-        return resetCoarseSpaceBlock(this->NumberOfBlocks_,dimension,dofsPerNode,nodesMap,dofsMaps,nullSpaceBasis,dirichletBoundaryDofs,nodeList);
+        return resetCoarseSpaceBlock(this->NumberOfBlocks_,dimension,dofsPerNode,nodesMap,dofsMaps,nullSpaceBasis,dirichletBoundaryDofs,nodeList,doNothingBoundaryDofs);
     }
 
     template <class SC,class LO,class GO,class NO>
@@ -183,7 +188,8 @@ namespace FROSch {
                                                                   ConstXMapPtrVecPtr2D repeatedDofMapsVec,
                                                                   ConstXMultiVectorPtrVecPtr nullSpaceBasisVec,
                                                                   GOVecPtr2D dirichletBoundaryDofsVec,
-                                                                  ConstXMultiVectorPtrVecPtr nodeListVec)
+                                                                  ConstXMultiVectorPtrVecPtr nodeListVec,
+                                                                  GOVecPtr2D doNothingBoundaryDofsVec)
     {
         FROSCH_DETAILTIMER_START_LEVELID(buildCoarseSpaceTime,"IPOUHarmonicCoarseOperator::buildCoarseSpace");
 
@@ -194,6 +200,15 @@ namespace FROSch {
         FROSCH_ASSERT(nullSpaceBasisVec.size()==TotalNumberOfBlocks,"nullSpaceBasisVec.size()!=TotalNumberOfBlocks");
         FROSCH_ASSERT(dirichletBoundaryDofsVec.size()==TotalNumberOfBlocks,"dirichletBoundaryDofsVec.size()!=TotalNumberOfBlocks");
         FROSCH_ASSERT(nodeListVec.size()==TotalNumberOfBlocks,"nodeListVec.size()!=TotalNumberOfBlocks");
+
+        // NonLinSchwarz functionality
+        if (doNothingBoundaryDofsVec.is_null()) {
+            doNothingBoundaryDofsVec.resize(TotalNumberOfBlocks);
+            for (int i = 0; i < TotalNumberOfBlocks; i++){
+                // resetCoarseSpaceBlock can handle nullptr correctly
+                doNothingBoundaryDofsVec[i] = Teuchos::ArrayRCP<GO>();
+            }
+        }
 
         // Todo: Move this to a function in HarmonicCoarseOperator at some point
         for (UN i=0; i<TotalNumberOfBlocks; i++) {
@@ -208,7 +223,8 @@ namespace FROSch {
                                   repeatedDofMapsVec[i],
                                   nullSpaceBasisVec[i],
                                   dirichletBoundaryDofsVec[i],
-                                  nodeListVec[i]);
+                                  nodeListVec[i],
+                                  doNothingBoundaryDofsVec[i]);
         }
         return 0;
     }
@@ -222,7 +238,8 @@ namespace FROSch {
                                                                        ConstXMapPtrVecPtr dofsMaps,
                                                                        ConstXMultiVectorPtr nullSpaceBasis,
                                                                        GOVecPtr dirichletBoundaryDofs,
-                                                                       ConstXMultiVectorPtr nodeList)
+                                                                       ConstXMultiVectorPtr nodeList,
+                                                                       GOVecPtr doNothingBoundaryDofs)
     {
         FROSCH_DETAILTIMER_START_LEVELID(resetCoarseSpaceBlockTime,"IPOUHarmonicCoarseOperator::resetCoarseSpaceBlock");
         FROSCH_ASSERT(dofsMaps.size()==dofsPerNode,"dofsMaps.size()!=dofsPerNode");
@@ -312,6 +329,10 @@ namespace FROSch {
                 FROSCH_ASSERT(false,"InterfacePartitionOfUnity Type is unknown.");
             }
 
+            interfacePartitionOfUnity->addBoundaryEntities(dirichletBoundaryDofs(), this->K_, Dirichlet);
+            // If no doNothingBoundaryDofs are passed, this does nothing
+            interfacePartitionOfUnity->addBoundaryEntities(doNothingBoundaryDofs(), this->K_, DoNothing);
+
             // Extract the interface and the interior from the DDInterface stored in the Interface Partition of Unity object
             InterfaceEntityPtr interface = interfacePartitionOfUnity->getDDInterface()->getInterface()->getEntity(0);
             InterfaceEntityPtr interior = interfacePartitionOfUnity->getDDInterface()->getInterior()->getEntity(0);
@@ -361,8 +382,7 @@ namespace FROSch {
                         this->IDofs_[blockId][interior->getGammaDofID(i,k)] = interior->getLocalDofID(i,k);
                     }
                 }
-
-                interfacePartitionOfUnity->passDirichletNodes(dirichletBoundaryDofs);
+                // interfacePartitionOfUnity->passDirichletNodes(dirichletBoundaryDofs);
                 // This calls the following functions:
                 // DDInterface_->buildEntityHierarchy();
                 // - Determines the ancestor-offspring-root relationships between entities.
@@ -370,10 +390,11 @@ namespace FROSch {
                 // - For each entity, computes the distance between the nodes in the entity and each root of the entity.
                 //   If the root is more than 1D, the distance is the minimum between current node and any node in the
                 //   root.
-                //   DDInterface_->buildEntityMaps();
+                // DDInterface_->buildEntityMaps();
                 //   - Build maps enumerating the interface entities within a set. This might have a bug since unique
-                //   ID's of entities are set to the ID of the first node within the entity. This is not guaranteed to
-                //   be unique [KH] Then
+                // ID's of entities are set to the ID of the first node within the entity. This is not guaranteed to
+                // be unique [KH]
+                // Finally, populate the InterfacePartitionOfUnity_ multi-vector with one entry for each coarse basis function.
                 interfacePartitionOfUnity->computePartitionOfUnity(nodeList);
                 PartitionOfUnity_ = interfacePartitionOfUnity;
             }

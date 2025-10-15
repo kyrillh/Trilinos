@@ -10,10 +10,13 @@
 #ifndef _FROSCH_IPOUHARMONICCOARSEOPERATOR_DECL_HPP
 #define _FROSCH_IPOUHARMONICCOARSEOPERATOR_DECL_HPP
 
-#include <FROSch_ConstantPartitionOfUnity_decl.hpp>
-#include <FROSch_GDSWInterfacePartitionOfUnity_decl.hpp>
-#include <FROSch_GDSWStarInterfacePartitionOfUnity_decl.hpp>
-#include <FROSch_RGDSWInterfacePartitionOfUnity_decl.hpp>
+#include <FROSch_ConstantPartitionOfUnity_def.hpp>
+#include <FROSch_GDSWInterfacePartitionOfUnity_def.hpp>
+#include <FROSch_GDSWStarInterfacePartitionOfUnity_def.hpp>
+#include <FROSch_RGDSWInterfacePartitionOfUnity_def.hpp>
+
+#include <FROSch_HarmonicCoarseOperator_def.hpp>
+#include <cstddef>
 
 #include <FROSch_HarmonicCoarseOperator_decl.hpp>
 
@@ -103,7 +106,8 @@ namespace FROSch {
                        ConstXMapPtrVecPtr dofsMaps,
                        ConstXMultiVectorPtr nullSpaceBasis,
                        ConstXMultiVectorPtr nodeList,
-                       GOVecPtr dirichletBoundaryDofs);
+                       GOVecPtr dirichletBoundaryDofs,
+                       GOVecPtr doNothingBoundaryDofs=Teuchos::ArrayRCP<GO>());
 
         int initialize(UN dimension,
                        UNVecPtr dofsPerNodeVec,
@@ -111,7 +115,8 @@ namespace FROSch {
                        ConstXMapPtrVecPtr2D repeatedDofMapsVec,
                        ConstXMultiVectorPtrVecPtr nullSpaceBasisVec,
                        ConstXMultiVectorPtrVecPtr nodeListVec,
-                       GOVecPtr2D dirichletBoundaryDofsVec);
+                       GOVecPtr2D dirichletBoundaryDofsVec,
+                       GOVecPtr2D doNothingBoundaryDofsVec=Teuchos::ArrayRCP<GOVecPtr>());
 
         void describe(FancyOStream &out,
                       const EVerbosityLevel verbLevel=Describable::verbLevel_default) const;
@@ -131,7 +136,8 @@ namespace FROSch {
                              ConstXMapPtrVecPtr dofsMaps,
                              ConstXMultiVectorPtr nullSpaceBasis,
                              GOVecPtr dirichletBoundaryDofs,
-                             ConstXMultiVectorPtr nodeList);
+                             ConstXMultiVectorPtr nodeList,
+                             GOVecPtr doNothingBoundaryDofs);
 
 
         int buildCoarseSpace(UN dimension,
@@ -140,7 +146,8 @@ namespace FROSch {
                              ConstXMapPtrVecPtr2D repeatedDofMapsVec,
                              ConstXMultiVectorPtrVecPtr nullSpaceBasisVec,
                              GOVecPtr2D dirichletBoundaryDofsVec,
-                             ConstXMultiVectorPtrVecPtr nodeListVec);
+                             ConstXMultiVectorPtrVecPtr nodeListVec,
+                             GOVecPtr2D doNothingBoundaryDofsVec);
 
         virtual int resetCoarseSpaceBlock(UN blockId,
                                           UN dimension,
@@ -149,7 +156,8 @@ namespace FROSch {
                                           ConstXMapPtrVecPtr dofsMaps,
                                           ConstXMultiVectorPtr nullSpaceBasis,
                                           GOVecPtr dirichletBoundaryDofs,
-                                          ConstXMultiVectorPtr nodeList);
+                                          ConstXMultiVectorPtr nodeList,
+                                          GOVecPtr doNothingBoundaryDofs);
 
 
         /*
