@@ -329,9 +329,9 @@ namespace FROSch {
                 FROSCH_ASSERT(false,"InterfacePartitionOfUnity Type is unknown.");
             }
 
-            interfacePartitionOfUnity->addBoundaryEntities(dirichletBoundaryDofs(), this->K_, Dirichlet);
+            interfacePartitionOfUnity->addBoundaryEntities(dirichletBoundaryDofs(), this->K_, DirichletFlag);
             // If no doNothingBoundaryDofs are passed, this does nothing
-            interfacePartitionOfUnity->addBoundaryEntities(doNothingBoundaryDofs(), this->K_, DoNothing);
+            interfacePartitionOfUnity->addBoundaryEntities(doNothingBoundaryDofs(), this->K_, DoNothingFlag);
 
             // Extract the interface and the interior from the DDInterface stored in the Interface Partition of Unity object
             InterfaceEntityPtr interface = interfacePartitionOfUnity->getDDInterface()->getInterface()->getEntity(0);

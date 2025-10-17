@@ -28,7 +28,7 @@ namespace FROSch {
     class EntitySet;
 
     enum EntityType {DefaultType,VertexType,EdgeType,FaceType,InteriorType,InterfaceType,BoundaryType};
-    enum EntityFlag {DefaultFlag,StraightFlag,ShortFlag,NodeFlag};
+    enum EntityFlag {DefaultFlag,StraightFlag,ShortFlag,NodeFlag,DirichletFlag,DoNothingFlag};
     enum DistanceFunction {ConstantDistanceFunction,InverseEuclideanDistanceFunction};
 
     template <class SC = double,

@@ -10,6 +10,7 @@
 #ifndef _FROSCH_DDINTERFACE_DEF_HPP
 #define _FROSCH_DDINTERFACE_DEF_HPP
 
+#include "FROSch_Output.h"
 #include "Teuchos_ArrayViewDecl.hpp"
 #include "Teuchos_VerboseObject.hpp"
 #include "Teuchos_VerbosityLevel.hpp"
@@ -161,27 +162,33 @@ namespace FROSch {
     }
 
     template <class SC, class LO, class GO, class NO>
-    int DDInterface<SC, LO, GO, NO>::addBoundaryEntities(GOVecView boundaryDofs, ConstXMatrixPtr matrix, enum BoundaryType type) {
+    int DDInterface<SC, LO, GO, NO>::addBoundaryEntities(const GOVecView boundaryDofs, ConstXMatrixPtr matrix, const EntityFlag type) {
         // Add an entity for every connected section of Dirichlet boundary
         // Entity sets built from the subdomain connectivity should be connected properly for most domain decompositions
         // e.g. if an entity set is built from nodes belonging to subdomains [1, 2] then they will be connected
         // properly, unless those two subdomains are adjacent in more than one disconnected locations. For the boundary,
         // we need to explicitly check connectivity as done in divideUnconnectedEntities.
  
+        FROSCH_ASSERT(type == DirichletFlag || type == DoNothingFlag, "addBoundaryEntities() is only for adding Dirichlet or do nothing boundaries");
         // For now we pretend that the boundary is not shared by any subdomains. Might need to change this later.
         constexpr UN multiplicity = 1;
         IntVec subdomains ({MpiComm_->getRank()});
         // Add a single entity for each subdomain and then split it
-        RCP<InterfaceEntity<SC, LO, GO, NO>> tmpEntity(new InterfaceEntity<SC, LO, GO, NO>(
-            BoundaryType, DofsPerNode_, multiplicity, subdomains.data()));
-
+        RCP<InterfaceEntity<SC, LO, GO, NO>> tmpEntity;
+        if (type == DirichletFlag) {
+            tmpEntity = Teuchos::rcp(
+                new InterfaceEntity<SC, LO, GO, NO>(BoundaryType, DofsPerNode_, multiplicity, subdomains.data(), DirichletFlag));
+        } else if (type == DoNothingFlag) {
+            tmpEntity = Teuchos::rcp(
+                new InterfaceEntity<SC, LO, GO, NO>(BoundaryType, DofsPerNode_, multiplicity, subdomains.data(), DoNothingFlag));
+        }
         const int numNodes = boundaryDofs.size()/DofsPerNode_;
         for (LO i = 0; i < numNodes; i++) {
             // ID within the current entity
             LO nodeIDBndry = tmpEntity->getNumNodes();
-            // Global node ID assuming node-wise ordering
+            // Global ID across all nodes
             GO nodeIDGlobal = boundaryDofs[i * DofsPerNode_] / DofsPerNode_;
-            // ID local to the subdomain
+            // ID local to the subdomain across interior and interface
             LO nodeIDLocal = NodesMap_->getLocalElement(nodeIDGlobal);
             LOVecPtr dofsI(DofsPerNode_);
             LOVecPtr dofsLocal(DofsPerNode_);
@@ -196,14 +203,9 @@ namespace FROSch {
         XMapPtr map = MapFactory<LO,GO,NO>::Build(matrix->getRowMap()->lib(),Teuchos::OrdinalTraits<GO>::invalid(),boundaryDofs(),0,MpiComm_);
         matrix = FROSch::ExtractLocalSubdomainMatrix(matrix.getConst(),map.getConst(),ScalarTraits<SC>::one());
         if (tmpEntity->getNumNodes() > 0) {
-            if (type == Dirichlet) {
-                Dirichlet_->addEntity(tmpEntity);
+                Boundary_->addEntity(tmpEntity);
                 // Split the single Dirichlet entity into multiple entities such that each forms a connected subset
-                Dirichlet_->divideUnconnectedEntities(matrix, MpiComm_->getRank());
-            } else if (type == DoNothing) {
-                DoNothing_->addEntity(tmpEntity);
-                DoNothing_->divideUnconnectedEntities(matrix, MpiComm_->getRank());
-            }
+                Boundary_->divideUnconnectedEntities(matrix, MpiComm_->getRank());
         }
         // Add the boundary entities to this->Interface_
         // Rebuild Interface_ and Interior_ entities 
@@ -791,17 +793,11 @@ namespace FROSch {
     }
  
     template <class SC,class LO,class GO,class NO>
-    typename DDInterface<SC,LO,GO,NO>::EntitySetConstPtr & DDInterface<SC,LO,GO,NO>::getDirichlet() const
+    typename DDInterface<SC,LO,GO,NO>::EntitySetConstPtr & DDInterface<SC,LO,GO,NO>::getBoundary() const
     {
-        return Dirichlet_;
+        return Boundary_;
     }
  
-    template <class SC,class LO,class GO,class NO>
-    typename DDInterface<SC,LO,GO,NO>::EntitySetConstPtr & DDInterface<SC,LO,GO,NO>::getDoNothing() const
-    {
-        return DoNothing_;
-    }
-
     template <class SC,class LO,class GO,class NO>
     typename DDInterface<SC,LO,GO,NO>::EntitySetConstPtr & DDInterface<SC,LO,GO,NO>::getRoots() const
     {
@@ -1110,8 +1106,8 @@ namespace FROSch {
 
             // Add all nodes belonging to this equivalence class to the interface entity
             for (UN j=0; j<components[i].size(); j++) {
-                nodeIDGamma = componentsGamma[i][j];      // Interface node ID
-                nodeIDLocal = components[i][j];            // Local node ID
+                nodeIDGamma = componentsGamma[i][j];      // ID amongst all nodes on the interface in this subdomain across all equivalence classes
+                nodeIDLocal = components[i][j];            // ID amongst all nodes in this subdomain across all equivalence classes
                 nodeIDGlobal = NodesMap_->getGlobalElement(nodeIDLocal);  // Global node ID
                 for (UN k=0; k<DofsPerNode_; k++) {
                     dofsGamma[k] = DofsPerNode_*nodeIDGamma+k;

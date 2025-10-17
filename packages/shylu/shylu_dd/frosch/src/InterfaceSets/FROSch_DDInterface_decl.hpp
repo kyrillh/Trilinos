@@ -29,7 +29,6 @@ namespace FROSch {
     using namespace Xpetra;
 
     enum CommunicationStrategy {CommCrsMatrix,CommCrsGraph,CreateOneToOneMap};
-    enum BoundaryType {Dirichlet,DoNothing};
 
     template <class SC = double,
               class LO = int,
@@ -132,7 +131,7 @@ namespace FROSch {
         //! @return 0 on success
         int removeDirichletNodes(GOVecView dirichletBoundaryDofs);
 
-        int addBoundaryEntities(GOVecView boundaryDofs, ConstXMatrixPtr matrix, enum BoundaryType type);
+        int addBoundaryEntities(const GOVecView boundaryDofs, ConstXMatrixPtr matrix, const enum EntityFlag type);
 
         //! Divide unconnected interface entities based on matrix connectivity.
         //! This function analyzes the connectivity pattern in the provided matrix
@@ -239,9 +238,7 @@ namespace FROSch {
 
         EntitySetConstPtr & getInterior() const;
 
-        EntitySetConstPtr & getDirichlet() const;
-
-        EntitySetConstPtr & getDoNothing() const;
+        EntitySetConstPtr & getBoundary() const;
 
         EntitySetConstPtr & getRoots() const;
 
@@ -295,8 +292,8 @@ namespace FROSch {
         // Sections of Dirichlet and do-nothing boundary types
         // For now we do not add these to EntitySetVector_.
         // This is to avoid breaking existing algorithms and we can explicitly use these boundary data if we need them.
-        EntitySetPtr Dirichlet_ = EntitySetPtr(new EntitySet<SC,LO,GO,NO>(BoundaryType));
-        EntitySetPtr DoNothing_ = EntitySetPtr(new EntitySet<SC,LO,GO,NO>(BoundaryType));
+        // Boundary can contain Dirichlet and DoNothing entities. The type is set in the entity itself, not in the set.
+        EntitySetPtr Boundary_ = EntitySetPtr(new EntitySet<SC,LO,GO,NO>(BoundaryType));
         EntitySetPtr Interface_ = EntitySetPtr(new EntitySet<SC,LO,GO,NO>(InterfaceType));
         EntitySetPtr Interior_ = EntitySetPtr(new EntitySet<SC,LO,GO,NO>(InteriorType));
         // Entities with no ancestors
