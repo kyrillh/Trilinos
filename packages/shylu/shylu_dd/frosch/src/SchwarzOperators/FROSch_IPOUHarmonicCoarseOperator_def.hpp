@@ -329,9 +329,29 @@ namespace FROSch {
                 FROSCH_ASSERT(false,"InterfacePartitionOfUnity Type is unknown.");
             }
 
-            interfacePartitionOfUnity->addBoundaryEntities(dirichletBoundaryDofs(), this->K_, DirichletFlag);
+            // The dirichletBoundaryDofs are passed in as global IDs in the context of the entire system matrix. In
+            // DDInterface::identifyLocalComponents() the global IDs are set with the map of the current block, which
+            // gives IDs global to the current block, but not considering previous blocks. Thus, we require an offset to
+            // correctly index blocks that are not the first block.
+            GO dofOffset = 0;
+            if (blockId != 0) {
+                // DofsMaps_ is a 2D vector. For every block it contains #dofs maps i.e. one map for each dof, but with global dof entries instead of node entries.
+                // Get the largest global dof index from the previous block for the offset.
+                for (int i = 0; i < this->DofsPerNode_[blockId - 1]; i++) {
+                    dofOffset = std::max(dofOffset, this->DofsMaps_[blockId - 1][this->DofsPerNode_[blockId - 1]- 1]->getMaxAllGlobalIndex());
+                }
+                // Compensate for zero-based indexing
+                dofOffset += 1;
+            }
+            // These add a single boundary entity and rely on sortInterface to split it into connected entities
+            interfacePartitionOfUnity->addBoundaryNodes(dirichletBoundaryDofs(), DirichletFlag, dofOffset);
             // If no doNothingBoundaryDofs are passed, this does nothing
-            interfacePartitionOfUnity->addBoundaryEntities(doNothingBoundaryDofs(), this->K_, DoNothingFlag);
+            interfacePartitionOfUnity->addBoundaryNodes(doNothingBoundaryDofs(), DoNothingFlag, dofOffset);
+            // addBoundaryNodes() add global node and dof indices for the current block. To split interface entities
+            // correctly, global dof indices are required that take previous blocks into account. resetGlobalDofs() does
+            // this and also enables switching between different dof ordering schemes.
+            interfacePartitionOfUnity->getDDInterfaceNonConst()->resetGlobalDofs(dofsMaps);
+
 
             // Extract the interface and the interior from the DDInterface stored in the Interface Partition of Unity object
             InterfaceEntityPtr interface = interfacePartitionOfUnity->getDDInterface()->getInterface()->getEntity(0);
@@ -382,7 +402,6 @@ namespace FROSch {
                         this->IDofs_[blockId][interior->getGammaDofID(i,k)] = interior->getLocalDofID(i,k);
                     }
                 }
-                // interfacePartitionOfUnity->passDirichletNodes(dirichletBoundaryDofs);
                 // This calls the following functions:
                 // DDInterface_->buildEntityHierarchy();
                 // - Determines the ancestor-offspring-root relationships between entities.
@@ -393,7 +412,7 @@ namespace FROSch {
                 // DDInterface_->buildEntityMaps();
                 //   - Build maps enumerating the interface entities within a set. This might have a bug since unique
                 // ID's of entities are set to the ID of the first node within the entity. This is not guaranteed to
-                // be unique [KH]
+                // be unique
                 // Finally, populate the InterfacePartitionOfUnity_ multi-vector with one entry for each coarse basis function.
                 interfacePartitionOfUnity->computePartitionOfUnity(nodeList);
                 PartitionOfUnity_ = interfacePartitionOfUnity;

@@ -15,7 +15,9 @@
 #include "Teuchos_DefaultMpiComm.hpp"
 #include "Teuchos_VerboseObject.hpp"
 #include "Teuchos_VerbosityLevel.hpp"
+#include "Xpetra_MultiVector_decl.hpp"
 #include <FROSch_InterfaceEntity_decl.hpp>
+#include <algorithm>
 
 
 namespace FROSch {
@@ -141,9 +143,32 @@ namespace FROSch {
     }
 
     template <class SC,class LO,class GO,class NO>
+    int InterfaceEntity<SC,LO,GO,NO>::removeNode(const Node<SC, LO, GO> &node)
+    {
+        auto it = std::lower_bound(NodeVector_.begin(), NodeVector_.end(), node);
+        if (it != NodeVector_.end()) {
+            NodeVector_.erase(it);
+            return 0;
+        } else {
+            return -1;
+        }
+    }
+
+    template <class SC,class LO,class GO,class NO>
     int InterfaceEntity<SC,LO,GO,NO>::sortByGlobalID()
     {
         sortunique(NodeVector_);
+        return 0;
+    }
+
+    template <class SC,class LO,class GO,class NO>
+    int InterfaceEntity<SC,LO,GO,NO>::reindexGammaID(){
+        for (int i = 0; i < NodeVector_.size(); i++){
+            NodeVector_[i].NodeIDGamma_ = i;
+            for (int j = 0; j < DofsPerNode_; j++) {
+                NodeVector_[i].DofsGamma_[j] = i*DofsPerNode_ + j;
+            }
+        }
         return 0;
     }
 
@@ -357,7 +382,7 @@ namespace FROSch {
     typename InterfaceEntity<SC, LO, GO, NO>::InterfaceEntityPtr
     InterfaceEntity<SC, LO, GO, NO>::divideEntity(ConstXMatrixPtr matrix, int pID) {
         InterfaceEntityPtr entity(
-            new InterfaceEntity<SC, LO, GO, NO>(Type_, DofsPerNode_, Multiplicity_, &(SubdomainsVector_[0])));
+            new InterfaceEntity<SC, LO, GO, NO>(Type_, DofsPerNode_, Multiplicity_, &(SubdomainsVector_[0]), Flag_));
         if (getNumNodes() >= 2) {
             sortByGlobalID();
             GOVecPtr mapVector(getNumNodes());
