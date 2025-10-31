@@ -10,6 +10,7 @@
 #ifndef _FROSCH_RGDSWINTERFACEPARTITIONOFUNITY_DEF_HPP
 #define _FROSCH_RGDSWINTERFACEPARTITIONOFUNITY_DEF_HPP
 
+#include "FROSch_InterfaceEntity_decl.hpp"
 #include <FROSch_RGDSWInterfacePartitionOfUnity_decl.hpp>
 #include <vector>
 #include <FROSch_GDSWInterfacePartitionOfUnity_def.hpp>
@@ -121,16 +122,29 @@ namespace FROSch {
                 for (UN j=0; j<EntitySetVector_[i]->getNumEntities(); j++) {
                     InterfaceEntityPtr tmpEntity = EntitySetVector_[i]->getEntity(j);
                     LO rootID = tmpEntity->getRootID();
+
                     UN numRoots = tmpEntity->getRoots()->getNumEntities();
+                    // if (this->MpiComm_->getRank() == 0) {
+                    //     std::cout << "Entity set [" << i << "] entity [" << j << "] has rootID = " << rootID << " and numRoots = " << numRoots << std::endl << std::flush;
+                    // }
                     if (rootID==-1) {
                         FROSCH_ASSERT(numRoots!=0,"rootID==-1 but numRoots==0!");
+                        SC value;
                         for (UN m=0; m<numRoots; m++) {
                             InterfaceEntityPtr tmpRoot = tmpEntity->getRoots()->getEntity(m);
                             // This determines which vector in the multivector is written to
                             LO index = tmpRoot->getRootID();
                             // Offspring: loop over nodes
-                            for (UN l=0; l<tmpEntity->getNumNodes(); l++) {
-                                SC value = tmpEntity->getDistanceToRoot(l,m)/tmpEntity->getDistanceToRoot(l,numRoots);
+                            for (UN l = 0; l < tmpEntity->getNumNodes(); l++) {
+                                if (tmpEntity->getEntityFlag() == DirichletFlag) {
+                                    value = 0.;
+                                } else if (tmpEntity->getEntityFlag() == DoNothingFlag) {
+                                    value = 1.;
+                                } else {
+                                    // The last entry in the 2nd dim. of getDistanceToRoot(i, last) is the distance between node i and 
+                                    value =
+                                        tmpEntity->getDistanceToRoot(l, m) / tmpEntity->getDistanceToRoot(l, numRoots);
+                                }
                                 for (UN k=0; k<dofsPerNode; k++) {
                                     tmpVector->replaceLocalValue(tmpEntity->getGammaDofID(l,k),index,value*ScalarTraits<SC>::one());
                                 }
@@ -138,7 +152,7 @@ namespace FROSch {
                         }
                     } else {
                         // Coarse node: loop over nodes
-                        for (UN l=0; l<EntitySetVector_[i]->getEntity(j)->getNumNodes(); l++) {
+                        for (UN l=0; l<tmpEntity->getNumNodes(); l++) {
                             for (UN k=0; k<dofsPerNode; k++) {
                                 tmpVector->replaceLocalValue(tmpEntity->getGammaDofID(l,k),rootID,ScalarTraits<SC>::one());
                             }

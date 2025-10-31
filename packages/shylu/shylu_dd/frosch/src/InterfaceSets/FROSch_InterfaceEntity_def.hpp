@@ -226,7 +226,8 @@ namespace FROSch {
     {
         EntitySetPtr ancestors(new EntitySet<SC,LO,GO,NO>(*entitySet));
         IntVec tmpVector;
-        // Remove all entities that are not an ancestor, either because they have a lower or equal multiplicity (just being sure), or because they don't share nodes (the "normal" case)
+        // Remove all entities that are not an ancestor, either because they have a lower or equal multiplicity (just being sure),
+        // or because they are not part of all the same subdomains (the "normal" case). An ancestor should belong to a superset of subdomains.
         for (UN i=0; i<Multiplicity_; i++) {
             UN length = ancestors->getNumEntities();
             for (UN j=0; j<length; j++) {
@@ -353,6 +354,7 @@ namespace FROSch {
                                 }
                                 // Compute inverse euclidean distance
                                 distance = sqrt(distance);
+                                // Keep the min. distance over all nodes in the root entity (loop j)
                                 DistancesVector_[k][i] = min(DistancesVector_[k][i],distance);
                             }
                         }
@@ -367,7 +369,8 @@ namespace FROSch {
                     FROSCH_ASSERT(false,"FROSch::InterfaceEntity: Specify a valid Distance Function.");
             }
 
-            // In the last "row", we store the sum of the distances for all coarse nodes
+            // The last "column" stores the sum of the distances from node i to all of the roots.
+            // Required for the inverst Euclidean formulation.
             for (UN i=0; i<NodeVector_.size(); i++) {
                 DistancesVector_[i][Roots_->getNumEntities()] = ScalarTraits<SC>::zero();
                 for (UN j=0; j<Roots_->getNumEntities(); j++) {
