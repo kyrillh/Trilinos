@@ -10,9 +10,11 @@
 #ifndef _FROSCH_INTERFACEENTITY_DEF_HPP
 #define _FROSCH_INTERFACEENTITY_DEF_HPP
 
+#include "FROSch_Output.h"
 #include "FROSch_Tools_decl.hpp"
 #include "Kokkos_MathematicalConstants.hpp"
 #include "Teuchos_DefaultMpiComm.hpp"
+#include "Teuchos_ScalarTraitsDecl.hpp"
 #include "Teuchos_VerboseObject.hpp"
 #include "Teuchos_VerbosityLevel.hpp"
 #include "Xpetra_MultiVector_decl.hpp"
@@ -427,6 +429,107 @@ namespace FROSch {
             }
         }
         return entity;
+    }
+
+    template <class SC, class LO, class GO, class NO>
+    int InterfaceEntity<SC, LO, GO, NO>::computeDistancesToDirichlet(
+        UN dimension, ConstXMultiVectorPtr &nodeList, const RCP<const EntitySet<SC, LO, GO, NO>> &dirichletEntities, const int pID) {
+        FROSCH_ASSERT(!nodeList.is_null(),
+                      "FROSch::InterfaceEntity: The inverse euclidean distance to the Dirichlet entity cannot be "
+                      "calculated without coordinates of the nodes!");
+        FROSCH_ASSERT(dimension == nodeList->getNumVectors(), "FROSch::InterfaceEntity: Inconsistent Dimension.");
+        FROSCH_ASSERT(
+            Flag_ == DirichletFlag || Flag_ == DoNothingFlag,
+            "FROSch::InterfaceEntity: computeDistancesToDirichlet() can only be called on boundary InterfaceEntities.");
+
+        // Hijack/overwrite the distancesVector with distance to Dirichlet node for all roots. We one vector in the
+        // multivector for each root since in the InterfacePartitionOfUnity classes an entry is built for each root.
+        DistancesVector_.resize(getNumNodes());
+        for (UN i = 0; i < getNumNodes(); i++) {
+            DistancesVector_[i].resize(Roots_->getNumEntities() + 1, numeric_limits<SC>::max());
+        }
+
+        // If this is a Dirichlet entity, the distance calculated in RGDSWInterfacePartitionOfUnity should be zero. We
+        // set all the distances to zero, and the sum of the distances to all roots (last column) to one as this is the
+        // denominator in the inverse Euclidean distance.
+        if (Flag_ == DirichletFlag) {
+            for (UN i = 0; i < NodeVector_.size(); i++) {
+                for (UN j = 0; j < Roots_->getNumEntities(); j++) {
+                    DistancesVector_[i][j] = ScalarTraits<SC>::zero();
+                }
+                DistancesVector_[i][Roots_->getNumEntities()] = ScalarTraits<SC>::one();
+            }
+        } else if (dirichletEntities->getNumEntities() != 1) {
+            // If there are zero or more than one Dirichlet entities in the local subdomain, set the distance to one
+            // everywhere since it does not make sense to compute the inverse Euclidean distance to a Dirichlet entity
+            // in this case.
+            if (dirichletEntities->getNumEntities() > 1) {
+                FROSCH_WARNING("FROSch_InterfaceEntity", true,
+                               "There are more than one Dirichlet entities in this subdomain. Setting do nothing "
+                               "interface to one.");
+            }
+            if (pID == 0) {
+                std::cout << "==> DoNothing entity " << this->UniqueID_ << " does not border any Dirichlet entities" << std::endl << std::flush;
+            }
+            // Note that the last entry in DistancesVector_[i] usually contains the sum of all the distances between
+            // node i and all the roots. Setting this value to one, ensures that 1/1 = 1 results from the inverse
+            // Euclidean calculation in the RGDSWInterfacePartitionOfUnity
+            for (UN i = 0; i < NodeVector_.size(); i++) {
+                for (UN j = 0; j < Roots_->getNumEntities() + 1; j++) {
+                    DistancesVector_[i][j] = ScalarTraits<SC>::one();
+                }
+            }
+        } else {
+            if (pID == 0) {
+                std::cout << "==> DoNothing entity " << this->UniqueID_ << " borders exactly one Dirichlet entity" << std::endl << std::flush;
+            }
+            for (UN i = 0; i < Roots_->getNumEntities(); i++) {
+                if (pID == 0) {
+                    std::cout << "====> Calculated distances [";
+                }
+                for (UN j = 0; j < dirichletEntities->getEntity(0)->getNumNodes(); j++) {
+                    // Coordinates of node j of the Dirichlet entity
+                    SCVecPtr CN(dimension);
+                    for (UN k = 0; k < dimension; k++) {
+                        CN[k] = nodeList->getData(k)[dirichletEntities->getEntity(0)->getLocalNodeID(j)];
+                    }
+                    for (UN k = 0; k < NodeVector_.size(); k++) {
+                        SC distance = ScalarTraits<SC>::zero();
+                        // Compute quadratic distance between node j in the Dirichlet entity and all the nodes in this
+                        // entity
+                        for (UN l = 0; l < dimension; l++) {
+                            distance += (nodeList->getData(l)[this->getLocalNodeID(k)] - CN[l]) *
+                                        (nodeList->getData(l)[this->getLocalNodeID(k)] - CN[l]);
+                        }
+                        distance = sqrt(distance);
+                        if (pID == 0) {
+                            std::cout << distance << ", ";
+                        }
+                        // Keep the min. distance over all nodes in the Dirichlet entity (loop j)
+                        DistancesVector_[k][i] = min(DistancesVector_[k][i], distance);
+                    }
+                }
+                if (pID == 0) {
+                    std::cout << "]" << std::endl << std::flush;
+                }
+            }
+
+            // Convert the distance to an inverse distance
+            for (UN i = 0; i < NodeVector_.size(); i++) {
+                for (UN j = 0; j < Roots_->getNumEntities(); j++) {
+                    DistancesVector_[i][j] = ScalarTraits<SC>::one() / DistancesVector_[i][j];
+                }
+            }
+            // The last "column" stores the sum of the distances from node i to all of the roots.
+            // Required for the invers Euclidean formulation.
+            for (UN i = 0; i < NodeVector_.size(); i++) {
+                DistancesVector_[i][Roots_->getNumEntities()] = ScalarTraits<SC>::zero();
+                for (UN j = 0; j < Roots_->getNumEntities(); j++) {
+                    DistancesVector_[i][Roots_->getNumEntities()] += DistancesVector_[i][j];
+                }
+            }
+        }
+        return 0;
     }
 
     /////////////////

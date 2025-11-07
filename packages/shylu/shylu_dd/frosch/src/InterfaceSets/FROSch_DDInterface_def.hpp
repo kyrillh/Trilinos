@@ -10,13 +10,14 @@
 #ifndef _FROSCH_DDINTERFACE_DEF_HPP
 #define _FROSCH_DDINTERFACE_DEF_HPP
 
+#include "FROSch_EntitySet_decl.hpp"
+#include "FROSch_InterfaceEntity_decl.hpp"
 #include "FROSch_Output.h"
+#include "FROSch_Tools_decl.hpp"
 #include "Teuchos_ArrayViewDecl.hpp"
 #include "Teuchos_VerboseObject.hpp"
 #include "Teuchos_VerbosityLevel.hpp"
 #include <FROSch_DDInterface_decl.hpp>
-#include <FROSch_EntitySet_def.hpp>
-#include <FROSch_ExtractSubmatrices_def.hpp>
 #include <algorithm>
 #include <iterator>
 
@@ -207,12 +208,19 @@ namespace FROSch {
             uniqueBoundaryNodes.resize(std::distance(uniqueBoundaryNodes.begin(), it));
 
             // Add boundary nodes to Interface_ and tmpEntity
-            for (LO i = 0; i < uniqueBoundaryNodes.size(); i++) {
+            for (LO i = 0; i < boundaryNodes.size(); i++) {
                 // ID within the interface local to the subdomain. Since the nodes being added here are guaranteed to
                 // not be in the interface yet, we can ID them via simple enumeration.
-                LO nodeIDBndry = interface->getNumNodes();
+                LO nodeIDBndry;
+                auto it_temp = std::find(interfaceNodes.begin(), interfaceNodes.end(), boundaryNodes[i]);
+                if (it_temp == interfaceNodes.end()) {
+                    nodeIDBndry = interface->getNumNodes();
+                } else { 
+                    int interface_id = std::distance(interfaceNodes.begin(), it_temp);
+                    nodeIDBndry = interface->getGammaNodeID(interface_id);
+                }
                 // Global ID across all nodes
-                GO nodeIDGlobal = uniqueBoundaryNodes[i];
+                GO nodeIDGlobal = boundaryNodes[i];
                 // ID local to the subdomain across interior and interface
                 LO nodeIDLocal = NodesMap_->getLocalElement(nodeIDGlobal);
 
@@ -228,10 +236,12 @@ namespace FROSch {
                 FROSCH_ASSERT(nodeIDLocal >= 0, "The global interface node " + std::to_string(nodeIDGlobal) +
                                                     " does not lie in subdomain " +
                                                     std::to_string(this->MpiComm_->getRank()));
-                interface->addNode(nodeIDBndry, nodeIDLocal, nodeIDGlobal, DofsPerNode_, dofsI, dofsLocal, dofsGlobal);
                 // nodeIDBndry is the index of the last node in the interface since it was just added with that index
-                tmpEntity->addNode(interface->getNode(nodeIDBndry));
-                Interior_->getEntity(0)->removeNode(interface->getNode(nodeIDBndry));
+                tmpEntity->addNode(nodeIDBndry, nodeIDLocal, nodeIDGlobal, DofsPerNode_, dofsI, dofsLocal, dofsGlobal);
+                if (it_temp == interfaceNodes.end()) {
+                    interface->addNode(nodeIDBndry, nodeIDLocal, nodeIDGlobal, DofsPerNode_, dofsI, dofsLocal, dofsGlobal);
+                    Interior_->getEntity(0)->removeNode(interface->getNode(nodeIDBndry));
+                }
             }
 
             // NodeIDGamma and DofsGamma of Interface_ nodes should be correct by construction. 
@@ -248,7 +258,9 @@ namespace FROSch {
     template <class SC, class LO, class GO, class NO>
     int DDInterface<SC, LO, GO, NO>::divideUnconnectedEntities(ConstXMatrixPtr matrix) {
         FROSCH_DETAILTIMER_START_LEVELID(divideUnconnectedEntitiesTime,"DDInterface::divideUnconnectedEntities");
+        // matrix is typically K_ i.e. the global system matrix
         //if (Verbose_ && Verbosity_==All) cout << "FROSch::DDInterface : Decomposing unconnected interface components" << endl;
+        bool tmp = this->MpiComm_->getRank() == 3;
 
         // PURPOSE: Split interface entities that are not properly connected based on matrix connectivity.
         // This ensures that each interface entity forms a connected component, which is
@@ -256,7 +268,15 @@ namespace FROSch {
 
         // STEP 1: Extract interface DOF indices for connectivity analysis
         // Create a list of global DOF IDs for all interface nodes
-        GOVecPtr indicesGammaDofs(DofsPerNode_*Interface_->getEntity(0)->getNumNodes());
+        std::vector<GO> tmpGammaIndices;
+        for (UN k=0; k<DofsPerNode_; k++) {
+            for (UN i=0; i<Interface_->getEntity(0)->getNumNodes(); i++) {
+                tmpGammaIndices.push_back(Interface_->getEntity(0)->getGammaDofID(i,k));
+            }
+        }
+        auto maxDof = std::max_element(tmpGammaIndices.begin(), tmpGammaIndices.end());
+
+       GOVecPtr indicesGammaDofs((*maxDof) + 1);
         for (UN k=0; k<DofsPerNode_; k++) {
             for (UN i=0; i<Interface_->getEntity(0)->getNumNodes(); i++) {
                 indicesGammaDofs[Interface_->getEntity(0)->getGammaDofID(i,k)] = Interface_->getEntity(0)->getGlobalDofID(i,k);
@@ -767,6 +787,24 @@ namespace FROSch {
                     ConnectivityEntities_->addEntity(EntitySetVector_[multiplicities[j]]->getEntity(i));
                 }
             }
+        }
+        return 0;
+    }
+
+    template <class SC,class LO,class GO,class NO>
+    int DDInterface<SC,LO,GO,NO>::computeDistancesToDirichlet(UN dimension, ConstXMultiVectorPtr &nodeList){
+
+        auto dirichletEntities = rcp(new EntitySet<SC, LO, GO, NO>(BoundaryType));
+        auto boundaryEntities = EntitySetVector_[1];
+        // Extract Dirichlet entities (if they exist)
+        for (int i = 0; i < boundaryEntities->getNumEntities(); i++){
+            if (boundaryEntities->getEntity(i)->getEntityFlag() == DirichletFlag) {
+                dirichletEntities->addEntity(boundaryEntities->getEntity(i));
+            }
+        }
+        // Calculate distances
+        for (int i = 0; i < boundaryEntities->getNumEntities(); i++){
+            boundaryEntities->getEntity(i)->computeDistancesToDirichlet(dimension, nodeList, dirichletEntities, MpiComm_->getRank());
         }
         return 0;
     }

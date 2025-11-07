@@ -250,6 +250,14 @@ namespace FROSch {
         int identifyConnectivityEntities(UNVecPtr multiplicities = null,
                                          EntityFlagVecPtr flags = null);
 
+        /**
+         * @brief wrapper function to call FROSch_InterfaceEntity::computeDistancesToDirichlet()
+         * @param dimension Dimension of the problem
+         * @param nodeList The coordinates of the finite element nodes in this subdomain. Required to calculate inverse Euclidean distances.
+         */
+        int computeDistancesToDirichlet(UN dimension, ConstXMultiVectorPtr &nodeList);
+
+
         UN getDimension() const;
 
         UN getDofsPerNode() const;
@@ -329,10 +337,6 @@ namespace FROSch {
         EntitySetPtr StraightEdges_ = EntitySetPtr(new EntitySet<SC,LO,GO,NO>(EdgeType));
         EntitySetPtr Edges_ = EntitySetPtr(new EntitySet<SC,LO,GO,NO>(EdgeType));
         EntitySetPtr Faces_ = EntitySetPtr(new EntitySet<SC,LO,GO,NO>(FaceType));
-        // Sections of Dirichlet and do-nothing boundary types
-        // For now we do not add these to EntitySetVector_.
-        // This is to avoid breaking existing algorithms and we can explicitly use these boundary data if we need them.
-        // Boundary can contain Dirichlet and DoNothing entities. The type is set in the entity itself, not in the set.
         EntitySetPtr Interface_ = EntitySetPtr(new EntitySet<SC,LO,GO,NO>(InterfaceType));
         EntitySetPtr Interior_ = EntitySetPtr(new EntitySet<SC,LO,GO,NO>(InteriorType));
         // Entities with no ancestors

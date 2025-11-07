@@ -155,6 +155,21 @@ namespace FROSch {
         InterfaceEntityPtr divideEntity(ConstXMatrixPtr matrix,
                                         int pID);
 
+        /**
+         * @brief Computes the distance of DoNothing nodes to a single neighboring Dirichlet entity. This is to enable
+         * modification of the RGDSW coarse space to have an inverse Euclidean drop along DoNothing boundary entities
+         * that have a DoNothing and Dirichlet boundary entity as neighbors. This was first developed to improve the
+         * performance of the nonlinear Schwarz solver applied to the 2D lid-driven cavity problem. If no Dirichlet and
+         * DoNothing boundaries were passed, this function does nothing. If more than one Dirichlet entity is found in
+         * this subdomain, the distance to set to one everywhere since a linear decrease between two Dirichlet entities
+         * does not make sense.
+         * @param dimension Dimension of the problem
+         * @param nodeList List of the node coords on the current subdomain. Required to calculate distances
+         * @param dirichletEntities A set of the Dirichlet entities on this subdomain
+         */
+        int computeDistancesToDirichlet(UN dimension, ConstXMultiVectorPtr &nodeList, const RCP<const EntitySet<SC,LO,GO,NO>>& dirichletEntities, const int pID);
+
+
         /////////////////
         // Get Methods //
         /////////////////

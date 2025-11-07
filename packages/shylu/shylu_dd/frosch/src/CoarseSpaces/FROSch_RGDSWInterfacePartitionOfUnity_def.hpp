@@ -75,6 +75,8 @@ namespace FROSch {
 
         this->DDInterface_->computeDistancesToRoots(this->DDInterface_->getDimension(),nodeList,DistanceFunction_);
 
+        this->DDInterface_->computeDistancesToDirichlet(this->DDInterface_->getDimension(), nodeList);
+
         this->DDInterface_->buildEntityMaps(false,
                                             false,
                                             false,
@@ -117,6 +119,7 @@ namespace FROSch {
             XMultiVectorPtr tmpVector = MultiVectorFactory<SC,LO,GO,NO>::Build(serialInterfaceMap,Roots_->getNumEntities());
 
             // Loop over EntitySetVector_
+            // Since tmpVector is overwritten below, nodes belonging to multiple entities only have the values coming from the entity farthest up the hierarchy.
             for (UN i=0; i<EntitySetVector_.size(); i++) {
                 // Loop over entities
                 for (UN j=0; j<EntitySetVector_[i]->getNumEntities(); j++) {
@@ -124,9 +127,6 @@ namespace FROSch {
                     LO rootID = tmpEntity->getRootID();
 
                     UN numRoots = tmpEntity->getRoots()->getNumEntities();
-                    // if (this->MpiComm_->getRank() == 0) {
-                    //     std::cout << "Entity set [" << i << "] entity [" << j << "] has rootID = " << rootID << " and numRoots = " << numRoots << std::endl << std::flush;
-                    // }
                     if (rootID==-1) {
                         FROSCH_ASSERT(numRoots!=0,"rootID==-1 but numRoots==0!");
                         SC value;
@@ -136,14 +136,15 @@ namespace FROSch {
                             LO index = tmpRoot->getRootID();
                             // Offspring: loop over nodes
                             for (UN l = 0; l < tmpEntity->getNumNodes(); l++) {
-                                if (tmpEntity->getEntityFlag() == DirichletFlag) {
-                                    value = 0.;
-                                } else if (tmpEntity->getEntityFlag() == DoNothingFlag) {
-                                    value = 1.;
-                                } else {
-                                    // The last entry in the 2nd dim. of getDistanceToRoot(i, last) is the distance between node i and 
+                                // if (tmpEntity->getEntityFlag() == DirichletFlag) {
+                                //     value = 0.;
+                                // } else if (tmpEntity->getEntityFlag() == DoNothingFlag) {
+                                //     value = 1.;
+                                // } else {
+                                    // The last entry in the 2nd dim. of getDistanceToRoot(i, last) is the sum of the distances between node i and all the roots in this subdomain
                                     value =
                                         tmpEntity->getDistanceToRoot(l, m) / tmpEntity->getDistanceToRoot(l, numRoots);
+                                // }
                                 }
                                 for (UN k=0; k<dofsPerNode; k++) {
                                     tmpVector->replaceLocalValue(tmpEntity->getGammaDofID(l,k),index,value*ScalarTraits<SC>::one());
