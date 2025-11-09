@@ -167,8 +167,8 @@ namespace FROSch {
          * @param nodeList List of the node coords on the current subdomain. Required to calculate distances
          * @param dirichletEntities A set of the Dirichlet entities on this subdomain
          */
-        int computeDistancesToDirichlet(UN dimension, ConstXMultiVectorPtr &nodeList, const RCP<const EntitySet<SC,LO,GO,NO>>& dirichletEntities, const int pID);
-
+        int computeDistancesOnBoundary(UN dimension, ConstXMultiVectorPtr &nodeList,
+                                        ArrayRCP<EntitySetPtr> entitySetVector, const int pID);
 
         /////////////////
         // Get Methods //
@@ -216,6 +216,8 @@ namespace FROSch {
 
         SC getDistanceToRoot(UN iDNode,
                              UN iDRoot) const;
+
+        const NodeVec& getConstNodeVectorRef() const;
 
     protected:
 

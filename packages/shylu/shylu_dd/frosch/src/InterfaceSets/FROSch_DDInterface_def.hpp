@@ -44,7 +44,8 @@ namespace FROSch {
     /* Verbose_ (MpiComm_->getRank()==0), */
     Verbose_ (false),
     Verbosity_ (verbosity),
-    LevelID_ (levelID)
+    LevelID_ (levelID),
+    HaveDirichletEntities_(false)
     {
         FROSCH_DETAILTIMER_START_LEVELID(dDInterfaceTime,"DDInterface::DDInterface");
         FROSCH_ASSERT(((Dimension_==2)||(Dimension_==3)),"FROSch::DDInterface: Only dimension 2 and 3 are available");
@@ -167,7 +168,9 @@ namespace FROSch {
                                                        const int dofOffset) {
         FROSCH_ASSERT(type == DirichletFlag || type == DoNothingFlag,
                       "addBoundaryNodes() is only for adding Dirichlet or do nothing boundaries");
-        if (boundaryDofs.size() > 0) {
+        // If type == DoNothingFlag and HaveDirichletEntities_ == false we don't add doNothing boundary since we only want to
+        // modify it in conjuction with a Dirichlet entity
+        if (boundaryDofs.size() > 0 && (type != DoNothingFlag || HaveDirichletEntities_)) {
 
             const auto interface = Interface_->getEntity(0);
             const int numBoundaryNodes = boundaryDofs.size() / DofsPerNode_;
@@ -252,6 +255,9 @@ namespace FROSch {
             // i.e. entities in which the union of the support of associated finitie element basis functions forms a
             // connected set. This is done in a later call to sortInterface()
             EntitySetVector_[1]->addEntity(tmpEntity);
+            if (type == DirichletFlag) {
+                HaveDirichletEntities_ = true;
+            }
         }
     }
 
@@ -792,19 +798,10 @@ namespace FROSch {
     }
 
     template <class SC,class LO,class GO,class NO>
-    int DDInterface<SC,LO,GO,NO>::computeDistancesToDirichlet(UN dimension, ConstXMultiVectorPtr &nodeList){
-
-        auto dirichletEntities = rcp(new EntitySet<SC, LO, GO, NO>(BoundaryType));
-        auto boundaryEntities = EntitySetVector_[1];
-        // Extract Dirichlet entities (if they exist)
-        for (int i = 0; i < boundaryEntities->getNumEntities(); i++){
-            if (boundaryEntities->getEntity(i)->getEntityFlag() == DirichletFlag) {
-                dirichletEntities->addEntity(boundaryEntities->getEntity(i));
-            }
-        }
+    int DDInterface<SC,LO,GO,NO>::computeDistancesOnBoundary(UN dimension, ConstXMultiVectorPtr &nodeList){
         // Calculate distances
-        for (int i = 0; i < boundaryEntities->getNumEntities(); i++){
-            boundaryEntities->getEntity(i)->computeDistancesToDirichlet(dimension, nodeList, dirichletEntities, MpiComm_->getRank());
+        for (int i = 0; i < EntitySetVector_[1]->getNumEntities(); i++){
+            EntitySetVector_[1]->getEntity(i)->computeDistancesOnBoundary(dimension, nodeList, EntitySetVector_, MpiComm_->getRank());
         }
         return 0;
     }

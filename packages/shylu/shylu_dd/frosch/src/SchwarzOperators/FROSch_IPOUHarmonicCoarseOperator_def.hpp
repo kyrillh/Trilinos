@@ -68,6 +68,7 @@ namespace FROSch {
         FROSCH_TIMER_START_LEVELID(initializeTime,"IPOUHarmonicCoarseOperator::initialize");
         buildCoarseSpace(dimension,dofsPerNodeVec,repeatedNodesMapVec,repeatedDofMapsVec,nullSpaceBasisVec,dirichletBoundaryDofsVec,nodeListVec,doNothingBoundaryDofsVec);
         this->CoarseMap_ = this->assembleCoarseMap();
+        // Merge coarse spaces from multiple blocks into one
         this->assembleInterfaceCoarseSpace();
         this->buildCoarseSolveMap(this->AssembledInterfaceCoarseSpace_->getBasisMapUnique());
         this->IsInitialized_ = true;
@@ -392,6 +393,7 @@ namespace FROSch {
                 interfacePartitionOfUnity->sortInterface(this->K_,nodeList);
 
                 // Construct Interface and Interior index sets
+                // These index sets are used to solve the local problems that generate the extensions into the interior
                 this->GammaDofs_[blockId] = LOVecPtr(this->DofsPerNode_[blockId]*interface->getNumNodes());
                 this->IDofs_[blockId] = LOVecPtr(this->DofsPerNode_[blockId]*interior->getNumNodes());
                 for (UN k=0; k<this->DofsPerNode_[blockId]; k++) {
@@ -427,6 +429,7 @@ namespace FROSch {
                 ConstSCVecPtr nullSpaceBasisData = nullSpaceBasis->getData(i);
                 for (UN k=0; k<this->DofsPerNode_[blockId]; k++) {
                     for (UN j=0; j<interface->getNumNodes(); j++) {
+                        // Extract the nullspace basis on the interface 
                         interfaceNullspaceBasisData[interface->getGammaDofID(j,k)] = nullSpaceBasisData[nullSpaceBasisMap->getLocalElement(interface->getGlobalDofID(j,k))];
                     }
                 }
@@ -451,6 +454,7 @@ namespace FROSch {
             // Build local basis
             LocalPartitionOfUnityBasis_ = LocalPartitionOfUnityBasisPtr(new LocalPartitionOfUnityBasis<SC,LO,GO,NO>(this->MpiComm_,this->SerialComm_,this->DofsPerNode_[blockId],sublist(coarseSpaceList,"LocalPartitionOfUnityBasis"),interfaceNullspaceBasis.getConst(),PartitionOfUnity_->getLocalPartitionOfUnity(),PartitionOfUnity_->getPartitionOfUnityMaps())); // sublist(coarseSpaceList,"LocalPartitionOfUnityBasis") testen
 
+            // This multiplies the null space with the partition of unity and assembles the resulting functions into a single matrix object
             LocalPartitionOfUnityBasis_->buildLocalPartitionOfUnityBasis();
 
             this->InterfaceCoarseSpaces_[blockId] = LocalPartitionOfUnityBasis_->getLocalPartitionOfUnitySpace();

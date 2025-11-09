@@ -251,11 +251,11 @@ namespace FROSch {
                                          EntityFlagVecPtr flags = null);
 
         /**
-         * @brief wrapper function to call FROSch_InterfaceEntity::computeDistancesToDirichlet()
+         * @brief wrapper function to call FROSch_InterfaceEntity::computeDistancesOnBoundary()
          * @param dimension Dimension of the problem
          * @param nodeList The coordinates of the finite element nodes in this subdomain. Required to calculate inverse Euclidean distances.
          */
-        int computeDistancesToDirichlet(UN dimension, ConstXMultiVectorPtr &nodeList);
+        int computeDistancesOnBoundary(UN dimension, ConstXMultiVectorPtr &nodeList);
 
 
         UN getDimension() const;
@@ -357,6 +357,7 @@ namespace FROSch {
 
         ConstUN LevelID_ = 1;
         GOVec NumEntity_;
+        bool HaveDirichletEntities_;
     };
 
 }

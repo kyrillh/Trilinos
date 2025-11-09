@@ -71,11 +71,14 @@ namespace FROSch {
         UN numInterfaceDofs = dofsPerNode*this->DDInterface_->getInterface()->getEntity(0)->getNumNodes();
 
         // This is where roots, leaves, ancestors etc. are determined
+        // Note that for boundary entities, all other entities in this subdomain will be ancestors since they are all
+        // part of this subdomain. An entity is considered an ancestor if it is a member of a superset of the subdomains
+        // of this->entity.
         this->DDInterface_->buildEntityHierarchy();
 
         this->DDInterface_->computeDistancesToRoots(this->DDInterface_->getDimension(),nodeList,DistanceFunction_);
 
-        this->DDInterface_->computeDistancesToDirichlet(this->DDInterface_->getDimension(), nodeList);
+        this->DDInterface_->computeDistancesOnBoundary(this->DDInterface_->getDimension(), nodeList);
 
         this->DDInterface_->buildEntityMaps(false,
                                             false,
@@ -136,16 +139,9 @@ namespace FROSch {
                             LO index = tmpRoot->getRootID();
                             // Offspring: loop over nodes
                             for (UN l = 0; l < tmpEntity->getNumNodes(); l++) {
-                                // if (tmpEntity->getEntityFlag() == DirichletFlag) {
-                                //     value = 0.;
-                                // } else if (tmpEntity->getEntityFlag() == DoNothingFlag) {
-                                //     value = 1.;
-                                // } else {
-                                    // The last entry in the 2nd dim. of getDistanceToRoot(i, last) is the sum of the distances between node i and all the roots in this subdomain
-                                    value =
-                                        tmpEntity->getDistanceToRoot(l, m) / tmpEntity->getDistanceToRoot(l, numRoots);
-                                // }
-                                }
+                                // The last entry in the 2nd dim. of getDistanceToRoot(i, last) is the sum of the distances between node i and all the roots in this subdomain
+                                value =
+                                    tmpEntity->getDistanceToRoot(l, m) / tmpEntity->getDistanceToRoot(l, numRoots);
                                 for (UN k=0; k<dofsPerNode; k++) {
                                     tmpVector->replaceLocalValue(tmpEntity->getGammaDofID(l,k),index,value*ScalarTraits<SC>::one());
                                 }
