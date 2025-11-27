@@ -116,11 +116,12 @@ namespace FROSch {
 
         int removeNode(UN iD);
 
-        int removeNode(const Node<SC, LO, GO>& node);
+        int removeNode(const Node<SC, LO, GO>& node, const int rank);
 
         int sortByGlobalID();
 
         int reindexGammaID();
+        int sortUniqueByLocalID();
 
         int setUniqueID(GO uniqueID);
 
@@ -131,6 +132,8 @@ namespace FROSch {
         int setLeafID(LO leafID);
 
         int setUniqueIDToFirstGlobalID();
+
+        int setGammaIDs(const int i, const LO gammaNodeID);
 
         int resetEntityType(EntityType type);
 

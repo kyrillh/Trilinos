@@ -149,13 +149,27 @@ namespace FROSch {
     }
 
     template <class SC,class LO,class GO,class NO>
-    int InterfaceEntity<SC,LO,GO,NO>::removeNode(const Node<SC, LO, GO> &node)
+    int InterfaceEntity<SC,LO,GO,NO>::removeNode(const Node<SC, LO, GO> &node, const int rank)
     {
+        int printRank = 0;
         auto it = std::lower_bound(NodeVector_.begin(), NodeVector_.end(), node);
-        if (it != NodeVector_.end()) {
+        // lower_bound returns the location of the first element greater than or equal to the input. It does not check
+        // whether they are equal so we have to do that here.
+        if (it != NodeVector_.end() && *it == node) {
+            if (rank == printRank) {
+                std::cout << "==> in removeNode removing (" << this->getGlobalNodeID(std::distance(NodeVector_.begin(), it)) << ", " << this->getLocalNodeID(std::distance(NodeVector_.begin(), it)) << ")" << std::endl << std::flush;
+                if (node == *it) {
+                    std::cout << "\t yes the nodes are equal" << std::endl << std::flush;
+                } else {
+                    std::cout << "\t no the nodes are not equal" << std::endl << std::flush;
+                }               
+            }
             NodeVector_.erase(it);
             return 0;
         } else {
+            if (rank == printRank) {
+                std::cout << "==> in removeNode but node not found" << std::endl << std::flush;
+            }
             return -1;
         }
     }
@@ -164,6 +178,19 @@ namespace FROSch {
     int InterfaceEntity<SC,LO,GO,NO>::sortByGlobalID()
     {
         sortunique(NodeVector_);
+        return 0;
+    }
+
+    template <class SC, class LO, class GO, class NO> int InterfaceEntity<SC, LO, GO, NO>::sortUniqueByLocalID() {
+        // Sort not unique
+        std::sort(NodeVector_.begin(), NodeVector_.end(),
+                  [](const Node<SC, LO, GO> &a, const Node<SC, LO, GO> &b) { return a.NodeIDLocal_ < b.NodeIDLocal_; });
+        // Move duplicate objects to end of vector
+        auto it = std::unique(
+            NodeVector_.begin(), NodeVector_.end(),
+            [](const Node<SC, LO, GO> &a, const Node<SC, LO, GO> &b) { return a.NodeIDLocal_ == b.NodeIDLocal_; });
+        // Remove the duplicate objects
+        NodeVector_.erase(it, NodeVector_.end());
         return 0;
     }
 
@@ -210,6 +237,15 @@ namespace FROSch {
     int InterfaceEntity<SC,LO,GO,NO>::setUniqueIDToFirstGlobalID()
     {
         UniqueID_ = NodeVector_[0].NodeIDGlobal_;
+        return 0;
+    }
+
+    template <class SC, class LO, class GO, class NO>
+    int InterfaceEntity<SC, LO, GO, NO>::setGammaIDs(const int i, const LO gammaNodeID) {
+        NodeVector_[i].NodeIDGamma_ = gammaNodeID;
+        for (int j = 0; j < DofsPerNode_; j++) {
+            NodeVector_[i].DofsGamma_[j] = gammaNodeID * DofsPerNode_ + j;
+        }
         return 0;
     }
 
@@ -408,7 +444,7 @@ namespace FROSch {
             // Here we split matrix into components contained in mapVector, outside of mapVector and coupling terms
             // between the two. The subsequent iteration on matII serves to split this entity into two according to a
             // direct connection with the first node.
-            BuildSubmatrices(matrix, mapVector(), matII, matIO, matOI, matOO);
+            BuildSubmatrices(matrix, mapVector(), matII, matIO, matOI, matOO, false, pID);
 
             XVectorPtr iterationVector = VectorFactory<SC, LO, GO, NO>::Build(matII->getRowMap());
             // This propagates non-zero entries to all nodes that are connected with the first node.

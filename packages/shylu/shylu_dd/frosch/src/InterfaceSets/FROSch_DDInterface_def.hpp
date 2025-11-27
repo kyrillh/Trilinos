@@ -174,20 +174,7 @@ namespace FROSch {
 
             const auto interface = Interface_->getEntity(0);
             const int numBoundaryNodes = boundaryDofs.size() / DofsPerNode_;
-            const int numInterfaceNodes = interface->getNumNodes();
 
-            // Create an entity just for the boundary nodes
-            constexpr UN multiplicity = 1;
-            IntVec subdomains({MpiComm_->getRank()});
-            RCP<InterfaceEntity<SC, LO, GO, NO>> tmpEntity;
-            if (type == DirichletFlag) {
-                tmpEntity = Teuchos::rcp(new InterfaceEntity<SC, LO, GO, NO>(BoundaryType, DofsPerNode_, multiplicity,
-                                                                             subdomains.data(), DirichletFlag));
-            } else if (type == DoNothingFlag) {
-                tmpEntity = Teuchos::rcp(new InterfaceEntity<SC, LO, GO, NO>(BoundaryType, DofsPerNode_, multiplicity,
-                                                                             subdomains.data(), DoNothingFlag));
-            }
- 
             // Build a sorted list of global Dirichlet boundary node indices
             // This assumes that the boundary dofs are provided in a node-wise ordering
             Teuchos::Array<GO> boundaryNodes(numBoundaryNodes);
@@ -195,33 +182,21 @@ namespace FROSch {
                 boundaryNodes[i] = (boundaryDofs[i * DofsPerNode_] - dofOffset) / DofsPerNode_;
             }
             sortunique(boundaryNodes);
+            // TODO:[KH] continue here on Thursday
+            // - in computeExtensions the matrix K_IJ is built with sorted local node IDs.
+            // - The below code adds nodes to the interface in such a way that they have a smaller local ID than some
+            // already present nodes and a larger gammaID causing a permuation of gammaID and local ID
+            // - the phi vector is built using the row map of K_IJ but the interface values are inserted using the
+            // gammaIDs. I don't understand why the problem is occuring in the interior and not on the interface -->
+            // probably because the interface values are built based on the permuted node
 
-            // Build a sorted list of global existing interface node indices
-            Teuchos::Array<GO> interfaceNodes(numInterfaceNodes);
-            for (LO i = 0; i < numInterfaceNodes; i++) {
-                interfaceNodes[i] = interface->getGlobalNodeID(i);
-            }
-            sortunique(interfaceNodes);
-
-            // Remove any nodes that are already part of the interface. This occurs when the boundary overlaps with the interface.
-            Teuchos::Array<GO> uniqueBoundaryNodes(numBoundaryNodes);
-            auto it = std::set_difference(boundaryNodes.begin(), boundaryNodes.end(), interfaceNodes.begin(),
-                                interfaceNodes.end(), uniqueBoundaryNodes.begin());
-            FROSCH_ASSERT(uniqueBoundaryNodes.size() > 0, "You are adding boundary dofs to the interface that are already in the interface");
-            uniqueBoundaryNodes.resize(std::distance(uniqueBoundaryNodes.begin(), it));
-
-            // Add boundary nodes to Interface_ and tmpEntity
+            // Add boundary nodes to interface
             for (LO i = 0; i < boundaryNodes.size(); i++) {
-                // ID within the interface local to the subdomain. Since the nodes being added here are guaranteed to
-                // not be in the interface yet, we can ID them via simple enumeration.
-                LO nodeIDBndry;
-                auto it_temp = std::find(interfaceNodes.begin(), interfaceNodes.end(), boundaryNodes[i]);
-                if (it_temp == interfaceNodes.end()) {
-                    nodeIDBndry = interface->getNumNodes();
-                } else { 
-                    int interface_id = std::distance(interfaceNodes.begin(), it_temp);
-                    nodeIDBndry = interface->getGammaNodeID(interface_id);
-                }
+                // The interface/interior ID does not matter at this point. The subdomain solver assumes that both ID
+                // local and interface/interior ID are constructed in ascending order relative to each other i.e. when
+                // one ID is sorted in ascending order, this also sorts the other --> build the tmpEntity here and sort
+                // its nodes by local ID afterwards since we are building using global ID
+                LO nodeIDBndry = 0;
                 // Global ID across all nodes
                 GO nodeIDGlobal = boundaryNodes[i];
                 // ID local to the subdomain across interior and interface
@@ -239,17 +214,89 @@ namespace FROSch {
                 FROSCH_ASSERT(nodeIDLocal >= 0, "The global interface node " + std::to_string(nodeIDGlobal) +
                                                     " does not lie in subdomain " +
                                                     std::to_string(this->MpiComm_->getRank()));
-                // nodeIDBndry is the index of the last node in the interface since it was just added with that index
-                tmpEntity->addNode(nodeIDBndry, nodeIDLocal, nodeIDGlobal, DofsPerNode_, dofsI, dofsLocal, dofsGlobal);
-                if (it_temp == interfaceNodes.end()) {
-                    interface->addNode(nodeIDBndry, nodeIDLocal, nodeIDGlobal, DofsPerNode_, dofsI, dofsLocal, dofsGlobal);
-                    Interior_->getEntity(0)->removeNode(interface->getNode(nodeIDBndry));
+                interface->addNode(nodeIDBndry, nodeIDLocal, nodeIDGlobal, DofsPerNode_, dofsI, dofsLocal, dofsGlobal);
+            }
+            //TODO: [KH] go through and redo all the comments in this function
+            //
+            // reindex GammaID so that GammaID and local ID are ordered in the same way
+            interface->sortUniqueByLocalID();
+            int printRank = 0;
+
+            if (this->MpiComm_->getRank() == printRank) {
+                std::cout << "==> After sortUnqiueByLocalID there are " << interface->getNumNodes() << " nodes in the interface" << std::endl << std::endl << std::flush;
+            }
+
+            interface->reindexGammaID();
+            // propagate the new gammaIDs to the Entities in EntitySetVector_
+            auto interfaceNodes = interface->getConstNodeVectorRef();
+            for (int i = 0; i < EntitySetVector_.size(); i++) {
+                for (int j = 0; j < EntitySetVector_[i]->getNumEntities(); j++) {
+                    for (int k = 0; k < EntitySetVector_[i]->getEntity(j)->getNumNodes(); k++) {
+                        // Find the current node in interface using binary search. This is probably more efficient
+                        // than building a hashed map std::unordered_map since we are finding e.g. 2400 elements for
+                        // subdomains with 640000 in 3D.
+                        auto interfaceNodeIt = std::lower_bound(
+                            interfaceNodes.begin(), interfaceNodes.end(), EntitySetVector_[i]->getEntity(j)->getNode(k),
+                            [](const auto &a, const auto &b) { return a.NodeIDLocal_ < b.NodeIDLocal_; });
+                        EntitySetVector_[i]->getEntity(j)->setGammaIDs(
+                            k, interface->getGammaNodeID(std::distance(interfaceNodes.begin(), interfaceNodeIt)));
+                    }
                 }
             }
 
-            // NodeIDGamma and DofsGamma of Interface_ nodes should be correct by construction. 
-            // However, Interior_ Gamma IDs need updating since nodes were removed.
+            // Create an entity just for the boundary nodes
+            constexpr UN multiplicity = 1;
+            IntVec subdomains({MpiComm_->getRank()});
+            RCP<InterfaceEntity<SC, LO, GO, NO>> tmpEntity;
+            if (type == DirichletFlag) {
+                tmpEntity = Teuchos::rcp(new InterfaceEntity<SC, LO, GO, NO>(BoundaryType, DofsPerNode_, multiplicity,
+                                                                             subdomains.data(), DirichletFlag));
+            } else if (type == DoNothingFlag) {
+                tmpEntity = Teuchos::rcp(new InterfaceEntity<SC, LO, GO, NO>(BoundaryType, DofsPerNode_, multiplicity,
+                                                                             subdomains.data(), DoNothingFlag));
+            }
+ 
+            // Build the tmpEntity with the new gammaIDs and remove nodes from Interior_
+            auto boundaryNodesIt = boundaryNodes.begin();
+            // removeNode() uses binary search on the globalID so requires the nodes to be sorted by globalID
+            Interior_->getEntity(0)->sortByGlobalID();
+            // boundary nodes should all be in the interface at this point
+            for (int i = 0; i < interface->getNumNodes(); i++) {
+                // Only need to deal with nodes actually in the boundary
+                if (*boundaryNodesIt == interface->getGlobalNodeID(i)) {
+                    if (this->MpiComm_->getRank() == printRank) {
+                        std::cout << "==> removing node (" << interface->getGlobalNodeID(i) << ", " << interface->getLocalNodeID(i) << ")" << std::endl << std::flush;
+                    }
+                    tmpEntity->addNode(interface->getNode(i));
+                    // If node is not in the entity, removeNode does nothing and returns -1.
+                    Interior_->getEntity(0)->removeNode(interface->getNode(i), this->MpiComm_->getRank());
+                    boundaryNodesIt++;
+                }
+            }
+
+            // Interior_ Gamma IDs need updating since nodes were removed.
             Interior_->getEntity(0)->reindexGammaID();
+
+            if (printRank == this->MpiComm_->getRank()) {
+                auto tmp = Interior_->getEntity(0);
+                std::cout << "==> Interior nodes (globalID, localID, GammaID): \n";
+                for (int i = 0; i < tmp->getNumNodes(); i++){
+                    std::cout << "\t(" << tmp->getGlobalNodeID(i) << ", " << tmp->getLocalNodeID(i) << ", " << tmp->getGammaNodeID(i) << ")\n";
+                }
+                std::cout << std::endl << std::flush;
+                tmp = interface;
+                std::cout << "==> Interface nodes (globalID, localID, GammaID): \n";
+                for (int i = 0; i < tmp->getNumNodes(); i++){
+                    std::cout << "\t(" << tmp->getGlobalNodeID(i) << ", " << tmp->getLocalNodeID(i) << ", " << tmp->getGammaNodeID(i) << ")\n";
+                }
+                std::cout << std::endl << std::flush;
+                tmp = tmpEntity;
+                std::cout << "==> tmpEntity nodes (globalID, localID, GammaID): \n";
+                for (int i = 0; i < tmp->getNumNodes(); i++){
+                    std::cout << "\t(" << tmp->getGlobalNodeID(i) << ", " << tmp->getLocalNodeID(i) << ", " << tmp->getGammaNodeID(i) << ")\n";
+                }
+                std::cout << std::endl << std::flush;
+            }
 
             // Add the boundary entity to this->EntitySetVector_. It is not split into strictly connected entities here
             // i.e. entities in which the union of the support of associated finitie element basis functions forms a
@@ -394,7 +441,7 @@ namespace FROSch {
                     FROSCH_ASSERT(EntitySetVector_[l]->getNumEntities()==0,"FROSch::DDInterface: This case is impossible.");
                     break;
                 case 1:
-                    // Test to see if Dirichlet interface entity has been built properly
+                    // Test to see if boundary interface entities have been built properly
                     for (UN i=0; i<EntitySetVector_[l]->getNumEntities(); i++) {
                         auto flag = EntitySetVector_[l]->getEntity(i)->getEntityFlag();
                         FROSCH_ASSERT(flag == DirichletFlag || flag == DoNothingFlag,"FROSch::DDInterface: EntitySetVector_[1] contains non-boundary entities.");

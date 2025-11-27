@@ -10,6 +10,7 @@
 #ifndef _FROSCH_HARMONICCOARSEOPERATOR_DEF_HPP
 #define _FROSCH_HARMONICCOARSEOPERATOR_DEF_HPP
 
+#include "Teuchos_RCPDecl.hpp"
 #include <FROSch_HarmonicCoarseOperator_decl.hpp>
 #include <FROSch_CoarseOperator_def.hpp>
 #include <FROSch_ExtractSubmatrices_def.hpp>
@@ -47,6 +48,7 @@ namespace FROSch {
             repeatedMatrix = this->coarseLocalSubdomainMatrix_;
         } else {
             repeatedMap = AssembleSubdomainMap(NumberOfBlocks_,DofsMaps_,DofsPerNode_);
+            // repeatedMatrix is K_ but stored on a serial comm on each rank
             repeatedMatrix = ExtractLocalSubdomainMatrix(this->K_.getConst(),repeatedMap.getConst());
         }
 
@@ -66,6 +68,7 @@ namespace FROSch {
 
         for (UN i=0; i<NumberOfBlocks_; i++) {
             for (UN j=0; j<GammaDofs_[i].size(); j++) {
+                // These are localIDs of the gamma nodes in gamma ID ordering
                 indicesGammaDofsAll.push_back(tmp+GammaDofs_[i][j]);
             }
             for (UN j=0; j<IDofs_[i].size(); j++) {
@@ -78,8 +81,36 @@ namespace FROSch {
         XMatrixPtr kIGamma;
         XMatrixPtr kGammaI;
         XMatrixPtr kGammaGamma;
+        int printRank = 0;
+        if(this->MpiComm_->getRank() == printRank) {
+            std::cout << "==> Building Submatrices in computeCoarseSpace\n";
+        }
+        this->MpiComm_->barrier();
+        this->MpiComm_->barrier();
+        this->MpiComm_->barrier();
+        // NOTE: [KH] kIGamma is built without permutation of the local indices. indicesGammaDofsAll does permute them
+        BuildSubmatrices(repeatedMatrix.getConst(),indicesIDofsAll(),kII,kIGamma,kGammaI,kGammaGamma, true, this->MpiComm_->getRank());
 
-        BuildSubmatrices(repeatedMatrix.getConst(),indicesIDofsAll(),kII,kIGamma,kGammaI,kGammaGamma);
+        // if(this->MpiComm_->getRank() == printRank) {
+        //     std::cout << "==> Printing repeatedMatrix\n";
+        // }
+        // printMatOnRank(Teuchos::rcp_const_cast<const Xpetra::Matrix<SC, LO, GO, NO>>(repeatedMatrix), this->MpiComm_->getRank(), printRank);
+
+        if (this->MpiComm_->getRank() == printRank) {
+            std::cout << "==> printing IDofsAll [";
+            for (int i = 0; i < indicesIDofsAll.size(); i++) {
+                std::cout << indicesIDofsAll[i] << ", ";
+            }
+            std::cout << "]" << std::endl << std::flush;
+            std::cout << "==> printing GammaDofsAll [";
+            for (int i = 0; i < indicesGammaDofsAll.size(); i++) {
+                std::cout << indicesGammaDofsAll[i] << ", ";
+            }
+            std::cout << "]" << std::endl << std::flush;
+        }
+        this->MpiComm_->barrier();
+        this->MpiComm_->barrier();
+        this->MpiComm_->barrier();
 
         //Detect linear dependencies
         if (!this->ParameterList_->get("Skip DetectLinearDependencies",false)) {
@@ -780,6 +811,7 @@ namespace FROSch {
             for (UN i=0; i<AssembledInterfaceCoarseSpace_->getAssembledBasis()->getNumVectors(); i++) {
                 ConstSCVecPtr assembledInterfaceCoarseSpaceData = AssembledInterfaceCoarseSpace_->getAssembledBasis()->getData(i);
                 for (UN j=0; j<AssembledInterfaceCoarseSpace_->getAssembledBasis()->getLocalLength(); j++) {
+                    // TODO: [KH] this is permuting the values of the interface partition of unity. I think that assembledInterfaceCoarseSpaceData is also permuted. This is why the interface is fine but the interior isn't.
                     mVPhiGamma->replaceLocalValue(j,i,assembledInterfaceCoarseSpaceData[j]);
                     mVPhi->replaceLocalValue(indicesGammaDofsAll[j],i,assembledInterfaceCoarseSpaceData[j]);
                 }
@@ -807,6 +839,16 @@ namespace FROSch {
 //        }
         // RCP<FancyOStream> fancy = fancyOStream(rcpFromRef(cout)); this->Phi_->describe(*fancy,VERB_EXTREME);
         // Hier Multiplikation kIGamma*PhiGamma
+        int printRank = 0;
+        // if (this->MpiComm_->getRank() == printRank) {
+        //     std::cout << "==> mVPhiGamma"<< std::endl;
+        // }
+        // printVecOnRank(rcp_const_cast<const MultiVector<SC, LO, GO, NO>>(mVPhiGamma), this->MpiComm_->getRank(), printRank);
+        this->MpiComm_->barrier();
+        this->MpiComm_->barrier();
+        this->MpiComm_->barrier();
+
+
         kIGamma->apply(*mVPhiGamma,*mVtmp);
 
         mVtmp->scale(-ScalarTraits<SC>::one());
@@ -824,6 +866,18 @@ namespace FROSch {
             ExtensionSolver_->compute();
             ExtensionSolver_->apply(*mVtmp,*mVPhiI);
         }
+        // if (this->MpiComm_->getRank() == printRank) {
+        //     std::cout << "==> mVtmp"<< std::endl;
+        // }
+        // printVecOnRank(rcp_const_cast<const MultiVector<SC, LO, GO, NO>>(mVtmp), this->MpiComm_->getRank(), printRank);
+        // this->MpiComm_->barrier();
+        // this->MpiComm_->barrier();
+        // this->MpiComm_->barrier();
+        //
+        // if (this->MpiComm_->getRank() == printRank) {
+        //     std::cout << "==> mVPhiI"<< std::endl;
+        // }
+        // printVecOnRank(rcp_const_cast<const MultiVector<SC, LO, GO, NO>>(mVPhiI), this->MpiComm_->getRank(), printRank);
 
         GOVec2D excludeCols(NumberOfBlocks_);
 
@@ -1179,7 +1233,15 @@ namespace FROSch {
             XMatrixPtr kGammaI;
             XMatrixPtr kGammaGamma;
             auto repeatedMatrix = this->coarseLocalSubdomainMatrix_;
-            BuildSubmatrices(repeatedMatrix.getConst(),indicesIDofsAll(),kII,kIGamma,kGammaI,kGammaGamma);
+            int printRank = 0;
+            if (this->MpiComm_->getRank() == printRank) {
+                std::cout << "==> Building Submatrices in extractLocalSubdomainMatrix_Symbolic\n";
+            }
+            this->MpiComm_->barrier();
+            this->MpiComm_->barrier();
+            this->MpiComm_->barrier();
+
+            BuildSubmatrices(repeatedMatrix.getConst(),indicesIDofsAll(),kII,kIGamma,kGammaI,kGammaGamma, true, this->MpiComm_->getRank());
 
             // perform symbolic on kII
             ExtensionSolver_ = SolverFactory<SC,LO,GO,NO>::Build(kII,
