@@ -116,7 +116,7 @@ namespace FROSch {
 
         int removeNode(UN iD);
 
-        int removeNode(const Node<SC, LO, GO>& node, const int rank);
+        int removeNode(const Node<SC, LO, GO>& node);
 
         int sortByGlobalID();
 

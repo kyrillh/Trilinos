@@ -12,7 +12,6 @@
 
 #include "FROSch_DDInterface_decl.hpp"
 #include "Teuchos_ArrayRCPDecl.hpp"
-#include "Teuchos_any.hpp"
 #include <FROSch_IPOUHarmonicCoarseOperator_decl.hpp>
 #include <FROSch_ConstantPartitionOfUnity_def.hpp>
 #include <FROSch_GDSWInterfacePartitionOfUnity_def.hpp>
@@ -345,29 +344,6 @@ namespace FROSch {
                 // Compensate for zero-based indexing
                 dofOffset += 1;
             }
-            InterfaceEntityPtr tmpInterface = interfacePartitionOfUnity->getDDInterface()->getInterface()->getEntity(0);
-            InterfaceEntityPtr tmpInterior = interfacePartitionOfUnity->getDDInterface()->getInterior()->getEntity(0);
-            int printRank = 0;
-            if (this->MpiComm_->getRank() == printRank) {
-                std::cout << "==> DirichletDofs [";
-                for (int i = 0; i < dirichletBoundaryDofs.size(); i++){
-                    std::cout << dirichletBoundaryDofs[i] << ", ";
-                }
-                std::cout << "]" << std::endl << "==> doNothingBoundaryDofs [";
-                for (int i = 0; i < doNothingBoundaryDofs.size(); i++){
-                    std::cout << doNothingBoundaryDofs[i] << ", ";
-                }
-                std::cout << "]" << std::endl << "==> interior (global, local) \n";
-                for (int i = 0; i < tmpInterior->getNumNodes(); i++){
-                    std::cout << "\t(" << tmpInterior->getGlobalNodeID(i) << ", " << tmpInterior->getLocalNodeID(i) << ")\n";
-                }
-                std::cout << std::endl << "==> interface (global, local)\n ";
-                for (int i = 0; i < tmpInterface->getNumNodes(); i++){
-                    std::cout << "\t(" << tmpInterface->getGlobalNodeID(i) << ", " << tmpInterface->getLocalNodeID(i) << ")\n";
-                }
-                std::cout << std::endl << std::flush;
-            }
-
 
             // These add a single boundary entity and rely on sortInterface to split it into connected entities
             interfacePartitionOfUnity->addBoundaryNodes(dirichletBoundaryDofs(), DirichletFlag, dofOffset);
@@ -421,22 +397,13 @@ namespace FROSch {
                 // These index sets are used to solve the local problems that generate the extensions into the interior
                 this->GammaDofs_[blockId] = LOVecPtr(this->DofsPerNode_[blockId]*interface->getNumNodes());
                 this->IDofs_[blockId] = LOVecPtr(this->DofsPerNode_[blockId]*interior->getNumNodes());
-                if (this->MpiComm_->getRank() == printRank) {
-                    std::cout << "==> GammmDofs_ \n";
-                }
                 for (UN k=0; k<this->DofsPerNode_[blockId]; k++) {
                     for (UN i=0; i<interface->getNumNodes(); i++) {
                         this->GammaDofs_[blockId][interface->getGammaDofID(i,k)] = interface->getLocalDofID(i,k);
-                        if (this->MpiComm_->getRank() == printRank) {
-                            std::cout << "\t(" << interface->getLocalDofID(i,k) << ", " << interface->getGammaDofID(i,k) << ")\n";
-                        }
                     }
                     for (UN i=0; i<interior->getNumNodes(); i++) {
                         this->IDofs_[blockId][interior->getGammaDofID(i,k)] = interior->getLocalDofID(i,k);
                     }
-                }
-                if (this->MpiComm_->getRank() == printRank) {
-                    std::cout << std::endl << std::flush;
                 }
                 // This calls the following functions:
                 // DDInterface_->buildEntityHierarchy();

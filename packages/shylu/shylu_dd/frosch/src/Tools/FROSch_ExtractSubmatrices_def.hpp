@@ -261,9 +261,7 @@ namespace FROSch {
                          RCP<Matrix<SC,LO,GO,NO> > &kII,
                          RCP<Matrix<SC,LO,GO,NO> > &kIJ,
                          RCP<Matrix<SC,LO,GO,NO> > &kJI,
-                         RCP<Matrix<SC,LO,GO,NO> > &kJJ, 
-                         bool print, 
-                         int pID)
+                         RCP<Matrix<SC,LO,GO,NO> > &kJJ)
     {
         FROSCH_DETAILTIMER_START(buildSubmatricesTime,"BuildSubmatrices");
         // We need four Maps
@@ -278,28 +276,7 @@ namespace FROSch {
                 indJ.push_back(i);
             }
         }
-        auto tempComm = k->getRowMap()->getComm();
-        int printRank = 0;
-        if (print && pID == printRank){
-            std::cout << "==> indI [";
-            for (int i = 0; i < indI.size(); i++) {
-                std::cout << indI[i] << ", ";
-            }
-            std::cout << "]" << std::endl << std::flush;
-        }
-
-        if (print && pID == printRank){
-            std::cout << "==> indJ [";
-            for (int i = 0; i < indJ.size(); i++) {
-                std::cout << indJ[i] << ", ";
-            }
-            std::cout << "]" << std::endl << std::flush;
-        }
-        tempComm->barrier();
-        tempComm->barrier();
-        tempComm->barrier();
         // Split k into four submatrices according to whether or not nodes are contained in indI.
-        // NOTE: [KH] mapJ is built from local ID that are not in mapI
         RCP<Map<LO,GO,NO> > mapJ = MapFactory<LO,GO,NO>::Build(k->getRowMap()->lib(),INVALID,indJ(),0,k->getRowMap()->getComm());
         RCP<Map<LO,GO,NO> > mapJLocal = MapFactory<LO,GO,NO>::Build(k->getRowMap()->lib(),INVALID,indJ.size(),0,k->getRowMap()->getComm());
         RCP<const Map<LO,GO,NO> > colMap = k->getColMap();
