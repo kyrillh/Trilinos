@@ -146,7 +146,7 @@ namespace FROSch {
          * versions of GDSW-type coarse spaces.
          * @param boundaryDofs the global dofs that are to be added to the interface. These should be boundary dofs in node-wise ordering.
          * this is not explicitly checked by the function.
-         * @param type Specifies the type of boundary that is being added i.e. Dirichlet or DoNothing.
+         * @param type Specifies the type of boundary that is being added i.e. Dirichlet or CustomBC.
          * @param offset the offset required to determine global node IDs from the dof IDs. Required e.g. for block
          * systems.
          */

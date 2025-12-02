@@ -42,10 +42,10 @@ namespace FROSch {
                                                             ConstXMultiVectorPtr nullSpaceBasis,
                                                             ConstXMultiVectorPtr nodeList,
                                                             GOVecPtr dirichletBoundaryDofs,
-                                                            GOVecPtr doNothingBoundaryDofs)
+                                                            GOVecPtr customBCDofs)
     {
         FROSCH_TIMER_START_LEVELID(initializeTime,"IPOUHarmonicCoarseOperator::initialize");
-        int ret = buildCoarseSpace(dimension,dofsPerNode,nodesMap,dofsMaps,nullSpaceBasis,dirichletBoundaryDofs,nodeList,doNothingBoundaryDofs);
+        int ret = buildCoarseSpace(dimension,dofsPerNode,nodesMap,dofsMaps,nullSpaceBasis,dirichletBoundaryDofs,nodeList,customBCDofs);
         this->CoarseMap_ = this->assembleCoarseMap();
         this->assembleInterfaceCoarseSpace();
         this->buildCoarseSolveMap(this->AssembledInterfaceCoarseSpace_->getBasisMapUnique());
@@ -63,10 +63,10 @@ namespace FROSch {
                                                             ConstXMultiVectorPtrVecPtr nullSpaceBasisVec,
                                                             ConstXMultiVectorPtrVecPtr nodeListVec,
                                                             GOVecPtr2D dirichletBoundaryDofsVec,
-                                                            GOVecPtr2D doNothingBoundaryDofsVec)
+                                                            GOVecPtr2D customBCDofsVec)
     {
         FROSCH_TIMER_START_LEVELID(initializeTime,"IPOUHarmonicCoarseOperator::initialize");
-        buildCoarseSpace(dimension,dofsPerNodeVec,repeatedNodesMapVec,repeatedDofMapsVec,nullSpaceBasisVec,dirichletBoundaryDofsVec,nodeListVec,doNothingBoundaryDofsVec);
+        buildCoarseSpace(dimension,dofsPerNodeVec,repeatedNodesMapVec,repeatedDofMapsVec,nullSpaceBasisVec,dirichletBoundaryDofsVec,nodeListVec,customBCDofsVec);
         this->CoarseMap_ = this->assembleCoarseMap();
         // Merge coarse spaces from multiple blocks into one
         this->assembleInterfaceCoarseSpace();
@@ -172,14 +172,14 @@ namespace FROSch {
                                                                    ConstXMultiVectorPtr nullSpaceBasis,
                                                                    GOVecPtr dirichletBoundaryDofs,
                                                                    ConstXMultiVectorPtr nodeList,
-                                                                   GOVecPtr doNothingBoundaryDofs)
+                                                                   GOVecPtr customBCDofs)
     {
         FROSCH_DETAILTIMER_START_LEVELID(buildCoarseSpaceTime,"IPOUHarmonicCoarseOperator::buildCoarseSpace");
         FROSCH_ASSERT(dofsMaps.size()==dofsPerNode,"dofsMaps.size()!=dofsPerNode");
 
         // Das könnte man noch ändern
         // Todo: Check the lengths of the vectors against NumberOfBlocks_
-        return resetCoarseSpaceBlock(this->NumberOfBlocks_,dimension,dofsPerNode,nodesMap,dofsMaps,nullSpaceBasis,dirichletBoundaryDofs,nodeList,doNothingBoundaryDofs);
+        return resetCoarseSpaceBlock(this->NumberOfBlocks_,dimension,dofsPerNode,nodesMap,dofsMaps,nullSpaceBasis,dirichletBoundaryDofs,nodeList,customBCDofs);
     }
 
     template <class SC,class LO,class GO,class NO>
@@ -190,7 +190,7 @@ namespace FROSch {
                                                                   ConstXMultiVectorPtrVecPtr nullSpaceBasisVec,
                                                                   GOVecPtr2D dirichletBoundaryDofsVec,
                                                                   ConstXMultiVectorPtrVecPtr nodeListVec,
-                                                                  GOVecPtr2D doNothingBoundaryDofsVec)
+                                                                  GOVecPtr2D customBCDofsVec)
     {
         FROSCH_DETAILTIMER_START_LEVELID(buildCoarseSpaceTime,"IPOUHarmonicCoarseOperator::buildCoarseSpace");
 
@@ -203,11 +203,11 @@ namespace FROSch {
         FROSCH_ASSERT(nodeListVec.size()==TotalNumberOfBlocks,"nodeListVec.size()!=TotalNumberOfBlocks");
 
         // NonLinSchwarz functionality
-        if (doNothingBoundaryDofsVec.is_null()) {
-            doNothingBoundaryDofsVec.resize(TotalNumberOfBlocks);
+        if (customBCDofsVec.is_null()) {
+            customBCDofsVec.resize(TotalNumberOfBlocks);
             for (int i = 0; i < TotalNumberOfBlocks; i++){
                 // resetCoarseSpaceBlock can handle nullptr correctly
-                doNothingBoundaryDofsVec[i] = Teuchos::ArrayRCP<GO>();
+                customBCDofsVec[i] = Teuchos::ArrayRCP<GO>();
             }
         }
 
@@ -225,7 +225,7 @@ namespace FROSch {
                                   nullSpaceBasisVec[i],
                                   dirichletBoundaryDofsVec[i],
                                   nodeListVec[i],
-                                  doNothingBoundaryDofsVec[i]);
+                                  customBCDofsVec[i]);
         }
         return 0;
     }
@@ -240,7 +240,7 @@ namespace FROSch {
                                                                        ConstXMultiVectorPtr nullSpaceBasis,
                                                                        GOVecPtr dirichletBoundaryDofs,
                                                                        ConstXMultiVectorPtr nodeList,
-                                                                       GOVecPtr doNothingBoundaryDofs)
+                                                                       GOVecPtr customBCDofs)
     {
         FROSCH_DETAILTIMER_START_LEVELID(resetCoarseSpaceBlockTime,"IPOUHarmonicCoarseOperator::resetCoarseSpaceBlock");
         FROSCH_ASSERT(dofsMaps.size()==dofsPerNode,"dofsMaps.size()!=dofsPerNode");
@@ -344,18 +344,20 @@ namespace FROSch {
                 // Compensate for zero-based indexing
                 dofOffset += 1;
             }
-
-            // These add a single boundary entity and rely on sortInterface to split it into connected entities
-            interfacePartitionOfUnity->addBoundaryNodes(dirichletBoundaryDofs(), DirichletFlag, dofOffset);
-            // If no doNothingBoundaryDofs are passed, this does nothing
-            interfacePartitionOfUnity->addBoundaryNodes(doNothingBoundaryDofs(), DoNothingFlag, dofOffset);
+            // There is no point in adding boundary nodes to the interface if it is empty
+            if (interfacePartitionOfUnity->getDDInterface()->getInterface()->getEntity(0)->getNumNodes() > 0) {
+                // These add a single boundary entity and rely on sortInterface to split it into connected entities
+                interfacePartitionOfUnity->addBoundaryNodes(dirichletBoundaryDofs(), DirichletFlag, dofOffset);
+                // If no customBCDofs are passed, this does nothing
+                interfacePartitionOfUnity->addBoundaryNodes(customBCDofs(), CustomBCFlag, dofOffset);
+            }
             // addBoundaryNodes() add global node and dof indices for the current block. To split interface entities
-            // correctly, global dof indices are required that take previous blocks into account. resetGlobalDofs() does
-            // this and also enables switching between different dof ordering schemes.
+            // correctly, global dof indices are required that take previous blocks into account. resetGlobalDofs()
+            // does this and also enables switching between different dof ordering schemes.
             interfacePartitionOfUnity->getDDInterfaceNonConst()->resetGlobalDofs(dofsMaps);
 
-
-            // Extract the interface and the interior from the DDInterface stored in the Interface Partition of Unity object
+            // Extract the interface and the interior from the DDInterface stored in the Interface Partition of Unity
+            // object
             InterfaceEntityPtr interface = interfacePartitionOfUnity->getDDInterface()->getInterface()->getEntity(0);
             InterfaceEntityPtr interior = interfacePartitionOfUnity->getDDInterface()->getInterior()->getEntity(0);
 

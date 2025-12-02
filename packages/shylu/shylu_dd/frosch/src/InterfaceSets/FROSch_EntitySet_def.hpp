@@ -234,22 +234,20 @@ namespace FROSch {
 
     template <class SC, class LO, class GO, class NO>
     int EntitySet<SC, LO, GO, NO>::computeDistancesToDirichletBoundary(UN dimension, ConstXMultiVectorPtr &nodeList,
-                                                                       ArrayRCP<EntitySetPtr> entitySetVector,
-                                                                       const int pID) {
+                                                                       ArrayRCP<EntitySetPtr> entitySetVector) {
         for (UN i = 0; i < getNumEntities(); i++) {
-            getEntity(i)->computeDistancesToDirichletBoundary(dimension, nodeList, entitySetVector, pID);
+            getEntity(i)->computeDistancesToDirichletBoundary(dimension, nodeList, entitySetVector);
         }
         return 0;
     }
 
     template<class SC,class LO,class GO,class NO>
-    int EntitySet<SC,LO,GO,NO>::divideUnconnectedEntities(ConstXMatrixPtr matrix,
-                                                          int pID)
+    int EntitySet<SC,LO,GO,NO>::divideUnconnectedEntities(ConstXMatrixPtr matrix)
     {
         UN before = getNumEntities();
         UN i=0;
         while (i<getNumEntities()) {
-            InterfaceEntityPtr tmpEntity = getEntity(i)->divideEntity(matrix,pID);
+            InterfaceEntityPtr tmpEntity = getEntity(i)->divideEntity(matrix);
             if (tmpEntity->getNumNodes()>0) {
                 addEntity(tmpEntity);
             }

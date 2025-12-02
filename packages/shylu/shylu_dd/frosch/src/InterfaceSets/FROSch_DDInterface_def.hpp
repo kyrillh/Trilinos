@@ -166,11 +166,11 @@ namespace FROSch {
     template <class SC, class LO, class GO, class NO>
     void DDInterface<SC, LO, GO, NO>::addBoundaryNodes(const GOVecView boundaryDofs, const EntityFlag type,
                                                        const int dofOffset) {
-        FROSCH_ASSERT(type == DirichletFlag || type == DoNothingFlag,
+        FROSCH_ASSERT(type == DirichletFlag || type == CustomBCFlag,
                       "addBoundaryNodes() is only for adding Dirichlet or do nothing boundaries");
-        // If type == DoNothingFlag and HaveDirichletEntities_ == false we don't add doNothing boundary since we only want to
+        // If type == CustomBCFlag and HaveDirichletEntities_ == false we don't add custom boundary since we only want to
         // modify it in conjuction with a Dirichlet entity
-        if (boundaryDofs.size() > 0 && (type != DoNothingFlag || HaveDirichletEntities_)) {
+        if (boundaryDofs.size() > 0 && (type != CustomBCFlag || HaveDirichletEntities_)) {
 
             const auto interface = Interface_->getEntity(0);
             const int numBoundaryNodes = boundaryDofs.size() / DofsPerNode_;
@@ -237,9 +237,9 @@ namespace FROSch {
             if (type == DirichletFlag) {
                 tmpEntity = Teuchos::rcp(new InterfaceEntity<SC, LO, GO, NO>(BoundaryType, DofsPerNode_, multiplicity,
                                                                              subdomains.data(), DirichletFlag));
-            } else if (type == DoNothingFlag) {
+            } else if (type == CustomBCFlag) {
                 tmpEntity = Teuchos::rcp(new InterfaceEntity<SC, LO, GO, NO>(BoundaryType, DofsPerNode_, multiplicity,
-                                                                             subdomains.data(), DoNothingFlag));
+                                                                             subdomains.data(), CustomBCFlag));
             }
  
             // Build the tmpEntity with the new gammaIDs and remove nodes from Interior_
@@ -275,7 +275,6 @@ namespace FROSch {
         FROSCH_DETAILTIMER_START_LEVELID(divideUnconnectedEntitiesTime,"DDInterface::divideUnconnectedEntities");
         // matrix is typically K_ i.e. the global system matrix
         //if (Verbose_ && Verbosity_==All) cout << "FROSch::DDInterface : Decomposing unconnected interface components" << endl;
-        bool tmp = this->MpiComm_->getRank() == 3;
 
         // PURPOSE: Split interface entities that are not properly connected based on matrix connectivity.
         // This ensures that each interface entity forms a connected component, which is
@@ -307,7 +306,7 @@ namespace FROSch {
         // STEP 3: Divide unconnected entities in all entity sets
         // Use matrix connectivity to split entities that are not connected
         for (UN i=0; i<EntitySetVector_.size(); i++) {
-            EntitySetVector_[i]->divideUnconnectedEntities(matrix,MpiComm_->getRank());
+            EntitySetVector_[i]->divideUnconnectedEntities(matrix);
         }
 
         /*
@@ -406,7 +405,7 @@ namespace FROSch {
                     // Test to see if boundary interface entities have been built properly
                     for (UN i=0; i<EntitySetVector_[l]->getNumEntities(); i++) {
                         auto flag = EntitySetVector_[l]->getEntity(i)->getEntityFlag();
-                        FROSCH_ASSERT(flag == DirichletFlag || flag == DoNothingFlag,"FROSch::DDInterface: EntitySetVector_[1] contains non-boundary entities.");
+                        FROSCH_ASSERT(flag == DirichletFlag || flag == CustomBCFlag,"FROSch::DDInterface: EntitySetVector_[1] contains non-boundary entities.");
                     }
                     break;
                 case 2:
@@ -810,7 +809,7 @@ namespace FROSch {
     int DDInterface<SC,LO,GO,NO>::computeDistancesOnBoundary(UN dimension, ConstXMultiVectorPtr &nodeList){
         // Calculate distances
         for (int i = 0; i < EntitySetVector_[1]->getNumEntities(); i++){
-            EntitySetVector_[1]->getEntity(i)->computeDistancesOnBoundary(dimension, nodeList, EntitySetVector_, MpiComm_->getRank());
+            EntitySetVector_[1]->getEntity(i)->computeDistancesOnBoundary(dimension, nodeList, EntitySetVector_);
         }
         return 0;
     }
@@ -818,7 +817,7 @@ namespace FROSch {
     template <class SC,class LO,class GO,class NO>
     int DDInterface<SC,LO,GO,NO>::computeDistancesToDirichletBoundary(UN dimension, ConstXMultiVectorPtr &nodeList){
         for (UN i=0; i<EntitySetVector_.size(); i++) {
-            EntitySetVector_[i]->computeDistancesToDirichletBoundary(dimension, nodeList, EntitySetVector_, MpiComm_->getRank());
+            EntitySetVector_[i]->computeDistancesToDirichletBoundary(dimension, nodeList, EntitySetVector_);
         }
         return 0;
     }

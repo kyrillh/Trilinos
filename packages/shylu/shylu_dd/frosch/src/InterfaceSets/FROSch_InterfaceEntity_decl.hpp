@@ -28,7 +28,7 @@ namespace FROSch {
     class EntitySet;
 
     enum EntityType {DefaultType,VertexType,EdgeType,FaceType,InteriorType,InterfaceType,BoundaryType};
-    enum EntityFlag {DefaultFlag,StraightFlag,ShortFlag,NodeFlag,DirichletFlag,DoNothingFlag};
+    enum EntityFlag {DefaultFlag,StraightFlag,ShortFlag,NodeFlag,DirichletFlag,CustomBCFlag};
     enum DistanceFunction {ConstantDistanceFunction,InverseEuclideanDistanceFunction};
 
     template <class SC = double,
@@ -155,15 +155,14 @@ namespace FROSch {
                                     ConstXMultiVectorPtr &nodeList = null,
                                     DistanceFunction distanceFunction = ConstantDistanceFunction);
 
-        InterfaceEntityPtr divideEntity(ConstXMatrixPtr matrix,
-                                        int pID);
+        InterfaceEntityPtr divideEntity(ConstXMatrixPtr matrix);
 
         /**
-         * @brief Computes the distance of DoNothing nodes to a single neighboring Dirichlet entity. This is to enable
-         * modification of the RGDSW coarse space to have an inverse Euclidean drop along DoNothing boundary entities
-         * that have a DoNothing and Dirichlet boundary entity as neighbors. This was first developed to improve the
+         * @brief Computes the distance of CustomBC nodes to a single neighboring Dirichlet entity. This is to enable
+         * modification of the RGDSW coarse space to have an inverse Euclidean drop along CustomBC boundary entities
+         * that have a CustomBC and Dirichlet boundary entity as neighbors. This was first developed to improve the
          * performance of the nonlinear Schwarz solver applied to the 2D lid-driven cavity problem. If no Dirichlet and
-         * DoNothing boundaries were passed, this function does nothing. If more than one Dirichlet entity is found in
+         * CustomBC boundaries were passed, this function does nothing. If more than one Dirichlet entity is found in
          * this subdomain, the distance to set to one everywhere since a linear decrease between two Dirichlet entities
          * does not make sense.
          * @param dimension Dimension of the problem
@@ -171,7 +170,7 @@ namespace FROSch {
          * @param dirichletEntities A set of the Dirichlet entities on this subdomain
          */
         int computeDistancesOnBoundary(UN dimension, ConstXMultiVectorPtr &nodeList,
-                                        ArrayRCP<EntitySetPtr> entitySetVector, const int pID);
+                                        ArrayRCP<EntitySetPtr> entitySetVector);
 
         /**
          * @brief Computes the inverse Euclidean distance on interface edges that end at a Dirichlet boundary
@@ -180,7 +179,7 @@ namespace FROSch {
          * @param dirichletEntities A set of the Dirichlet entities on this subdomain
          */
         int computeDistancesToDirichletBoundary(UN dimension, ConstXMultiVectorPtr &nodeList,
-                                        ArrayRCP<EntitySetPtr> entitySetVector, const int pID);
+                                        ArrayRCP<EntitySetPtr> entitySetVector);
 
         /////////////////
         // Get Methods //

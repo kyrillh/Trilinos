@@ -107,7 +107,7 @@ namespace FROSch {
                        ConstXMultiVectorPtr nullSpaceBasis,
                        ConstXMultiVectorPtr nodeList,
                        GOVecPtr dirichletBoundaryDofs,
-                       GOVecPtr doNothingBoundaryDofs=Teuchos::ArrayRCP<GO>());
+                       GOVecPtr customBCDofs=Teuchos::ArrayRCP<GO>());
 
         int initialize(UN dimension,
                        UNVecPtr dofsPerNodeVec,
@@ -116,7 +116,7 @@ namespace FROSch {
                        ConstXMultiVectorPtrVecPtr nullSpaceBasisVec,
                        ConstXMultiVectorPtrVecPtr nodeListVec,
                        GOVecPtr2D dirichletBoundaryDofsVec,
-                       GOVecPtr2D doNothingBoundaryDofsVec=Teuchos::ArrayRCP<GOVecPtr>());
+                       GOVecPtr2D customBCDofsVec=Teuchos::ArrayRCP<GOVecPtr>());
 
         void describe(FancyOStream &out,
                       const EVerbosityLevel verbLevel=Describable::verbLevel_default) const;
@@ -137,7 +137,7 @@ namespace FROSch {
                              ConstXMultiVectorPtr nullSpaceBasis,
                              GOVecPtr dirichletBoundaryDofs,
                              ConstXMultiVectorPtr nodeList,
-                             GOVecPtr doNothingBoundaryDofs);
+                             GOVecPtr customBCDofs);
 
 
         int buildCoarseSpace(UN dimension,
@@ -147,7 +147,7 @@ namespace FROSch {
                              ConstXMultiVectorPtrVecPtr nullSpaceBasisVec,
                              GOVecPtr2D dirichletBoundaryDofsVec,
                              ConstXMultiVectorPtrVecPtr nodeListVec,
-                             GOVecPtr2D doNothingBoundaryDofsVec);
+                             GOVecPtr2D customBCDofsVec);
 
         virtual int resetCoarseSpaceBlock(UN blockId,
                                           UN dimension,
@@ -157,7 +157,7 @@ namespace FROSch {
                                           ConstXMultiVectorPtr nullSpaceBasis,
                                           GOVecPtr dirichletBoundaryDofs,
                                           ConstXMultiVectorPtr nodeList,
-                                          GOVecPtr doNothingBoundaryDofs);
+                                          GOVecPtr customBCDofs);
 
 
         /*
