@@ -173,6 +173,15 @@ namespace FROSch {
         int computeDistancesOnBoundary(UN dimension, ConstXMultiVectorPtr &nodeList,
                                         ArrayRCP<EntitySetPtr> entitySetVector, const int pID);
 
+        /**
+         * @brief Computes the inverse Euclidean distance on interface edges that end at a Dirichlet boundary
+         * @param dimension Dimension of the problem
+         * @param nodeList List of the node coords on the current subdomain. Required to calculate distances
+         * @param dirichletEntities A set of the Dirichlet entities on this subdomain
+         */
+        int computeDistancesToDirichletBoundary(UN dimension, ConstXMultiVectorPtr &nodeList,
+                                        ArrayRCP<EntitySetPtr> entitySetVector, const int pID);
+
         /////////////////
         // Get Methods //
         /////////////////

@@ -88,6 +88,9 @@ namespace FROSch {
                                     ConstXMultiVectorPtr &nodeList = null,
                                     DistanceFunction distanceFunction = ConstantDistanceFunction);
 
+        int computeDistancesToDirichletBoundary(UN dimension, ConstXMultiVectorPtr &nodeList,
+                                        ArrayRCP<EntitySetPtr> entitySetVector, const int pID);
+
         int divideUnconnectedEntities(ConstXMatrixPtr matrix,
                                       int pID);
 

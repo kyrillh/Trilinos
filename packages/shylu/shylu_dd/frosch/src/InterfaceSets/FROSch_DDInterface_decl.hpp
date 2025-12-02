@@ -257,6 +257,14 @@ namespace FROSch {
          */
         int computeDistancesOnBoundary(UN dimension, ConstXMultiVectorPtr &nodeList);
 
+        /**
+         * @brief wrapper function to call FROSch_EntitySet::computeDistancesToDirichletBoundary()
+         * @param dimension Dimension of the problem
+         * @param nodeList The coordinates of the finite element nodes in this subdomain. Required to calculate inverse Euclidean distances.
+         */
+        int computeDistancesToDirichletBoundary(UN dimension, ConstXMultiVectorPtr &nodeList);
+
+
 
         UN getDimension() const;
 

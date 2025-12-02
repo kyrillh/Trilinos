@@ -232,6 +232,16 @@ namespace FROSch {
         return 0;
     }
 
+    template <class SC, class LO, class GO, class NO>
+    int EntitySet<SC, LO, GO, NO>::computeDistancesToDirichletBoundary(UN dimension, ConstXMultiVectorPtr &nodeList,
+                                                                       ArrayRCP<EntitySetPtr> entitySetVector,
+                                                                       const int pID) {
+        for (UN i = 0; i < getNumEntities(); i++) {
+            getEntity(i)->computeDistancesToDirichletBoundary(dimension, nodeList, entitySetVector, pID);
+        }
+        return 0;
+    }
+
     template<class SC,class LO,class GO,class NO>
     int EntitySet<SC,LO,GO,NO>::divideUnconnectedEntities(ConstXMatrixPtr matrix,
                                                           int pID)

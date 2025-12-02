@@ -816,6 +816,14 @@ namespace FROSch {
     }
 
     template <class SC,class LO,class GO,class NO>
+    int DDInterface<SC,LO,GO,NO>::computeDistancesToDirichletBoundary(UN dimension, ConstXMultiVectorPtr &nodeList){
+        for (UN i=0; i<EntitySetVector_.size(); i++) {
+            EntitySetVector_[i]->computeDistancesToDirichletBoundary(dimension, nodeList, EntitySetVector_, MpiComm_->getRank());
+        }
+        return 0;
+    }
+
+    template <class SC,class LO,class GO,class NO>
     typename DDInterface<SC,LO,GO,NO>::UN DDInterface<SC,LO,GO,NO>::getDimension() const
     {
         return Dimension_;

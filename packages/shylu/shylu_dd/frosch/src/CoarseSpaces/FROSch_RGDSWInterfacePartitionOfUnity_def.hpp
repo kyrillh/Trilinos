@@ -78,6 +78,8 @@ namespace FROSch {
 
         this->DDInterface_->computeDistancesToRoots(this->DDInterface_->getDimension(),nodeList,DistanceFunction_);
 
+        this->DDInterface_->computeDistancesToDirichletBoundary(this->DDInterface_->getDimension(),nodeList);
+
         this->DDInterface_->computeDistancesOnBoundary(this->DDInterface_->getDimension(), nodeList);
 
         this->DDInterface_->buildEntityMaps(false,
