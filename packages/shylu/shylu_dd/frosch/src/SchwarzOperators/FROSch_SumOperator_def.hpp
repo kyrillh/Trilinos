@@ -11,6 +11,7 @@
 #define _FROSCH_SUMOPERATOR_DEF_HPP
 
 #include <FROSch_SumOperator_decl.hpp>
+#include <FROSch_SchwarzOperator_def.hpp>
 
 
 namespace FROSch {

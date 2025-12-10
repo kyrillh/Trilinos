@@ -10,7 +10,7 @@
 #ifndef _FROSCH_COARSEOPERATOR_DECL_HPP
 #define _FROSCH_COARSEOPERATOR_DECL_HPP
 
-#include <FROSch_SchwarzOperator_def.hpp>
+#include <FROSch_SchwarzOperator_decl.hpp>
 
 // #define FROSCH_COARSEOPERATOR_DETAIL_TIMERS
 // #define FROSCH_COARSEOPERATOR_EXPORT_AND_IMPORT

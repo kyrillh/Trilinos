@@ -11,6 +11,8 @@
 #define _FROSCH_PARTITIONOFUNITYBASIS_DEF_HPP
 
 #include <FROSch_LocalPartitionOfUnityBasis_decl.hpp>
+#include <FROSch_CoarseSpace_def.hpp>
+#include "FROSch_Tools_def.hpp"
 
 
 namespace FROSch {

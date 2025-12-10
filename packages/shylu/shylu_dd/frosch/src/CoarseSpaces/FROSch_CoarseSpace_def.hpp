@@ -11,6 +11,7 @@
 #define _FROSCH_COARSESPACE_DEF_HPP
 
 #include <FROSch_CoarseSpace_decl.hpp>
+#include <FROSch_Tools_def.hpp>
 
 
 namespace FROSch {
@@ -98,7 +99,7 @@ namespace FROSch {
                 if (AssembledBasis_->getMap()->lib() == UseTpetra) {
                     using execution_space = typename XMap::local_map_type::execution_space;
                     // Xpetra wrapper for Tpetra MV
-                    auto assembledXTpetraMVector = rcp_dynamic_cast<TpetraMultiVector<SC,LO,GO,NO>>(AssembledBasis_, true);
+                    auto assembledXTpetraMVector = rcp_dynamic_cast<Xpetra::TpetraMultiVector<SC,LO,GO,NO>>(AssembledBasis_, true);
                     // Tpetra MV
                     auto assembledTpetraMVector = assembledXTpetraMVector->getTpetra_MultiVector();
                     // Kokkos View
@@ -117,7 +118,7 @@ namespace FROSch {
 
                             Kokkos::RangePolicy<execution_space> policy (0, LocalLength_i);
                             // Xpetra wrapper for Tpetra MV
-                            auto unassembledXTpetraMVector = rcp_dynamic_cast<const TpetraMultiVector<SC,LO,GO,NO>>(UnassembledSubspaceBases_[i], true);
+                            auto unassembledXTpetraMVector = rcp_dynamic_cast<const Xpetra::TpetraMultiVector<SC,LO,GO,NO>>(UnassembledSubspaceBases_[i], true);
                             // Tpetra MV
                             auto unassembledTpetraMVector = unassembledXTpetraMVector->getTpetra_MultiVector();
                             // Views

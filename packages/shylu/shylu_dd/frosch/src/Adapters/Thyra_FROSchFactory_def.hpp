@@ -11,6 +11,8 @@
 #define _THYRA_FROSCH_FACTORY_DEF_HPP
 
 #include "Thyra_FROSchFactory_decl.hpp"
+#include <Thyra_FROSchLinearOp_def.hpp>
+#include <FROSch_Tools_def.hpp>
 
 #include <FROSch_AlgebraicOverlappingPreconditioner_def.hpp>
 #include <FROSch_GDSWPreconditioner_def.hpp>

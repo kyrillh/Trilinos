@@ -10,6 +10,17 @@
 #ifndef _FROSCH_INTERFACEENTITY_DEF_HPP
 #define _FROSCH_INTERFACEENTITY_DEF_HPP
 
+#include "FROSch_Output.h"
+#include "FROSch_Tools_decl.hpp"
+#include "Kokkos_MathematicalConstants.hpp"
+#include <FROSch_InterfaceEntity_decl.hpp>
+#include <FROSch_ExtractSubmatrices_def.hpp>
+#include <FROSch_Tools_def.hpp>
+#include "Teuchos_DefaultMpiComm.hpp"
+#include "Teuchos_ScalarTraitsDecl.hpp"
+#include "Teuchos_VerboseObject.hpp"
+#include "Teuchos_VerbosityLevel.hpp"
+#include "Xpetra_MultiVector_decl.hpp"
 #include <FROSch_InterfaceEntity_decl.hpp>
 
 

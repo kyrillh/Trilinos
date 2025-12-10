@@ -11,6 +11,8 @@
 #define _FROSCH_HARMONICCOARSEOPERATOR_DEF_HPP
 
 #include <FROSch_HarmonicCoarseOperator_decl.hpp>
+#include <FROSch_CoarseOperator_def.hpp>
+#include <FROSch_ExtractSubmatrices_def.hpp>
 
 
 namespace FROSch {

@@ -10,7 +10,7 @@
 #ifndef _FROSCH_RGDSWINTERFACEPARTITIONOFUNITY_DECL_HPP
 #define _FROSCH_RGDSWINTERFACEPARTITIONOFUNITY_DECL_HPP
 
-#include <FROSch_GDSWInterfacePartitionOfUnity_def.hpp>
+#include <FROSch_GDSWInterfacePartitionOfUnity_decl.hpp>
 
 
 namespace FROSch {

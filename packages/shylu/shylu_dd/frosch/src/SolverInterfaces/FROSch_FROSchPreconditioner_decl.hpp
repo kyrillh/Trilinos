@@ -13,7 +13,7 @@
 #include <ShyLU_DDFROSch_config.h>
 
 // FROSch
-#include <FROSch_Solver_def.hpp>
+#include <FROSch_Solver_decl.hpp>
 
 #include <FROSch_SchwarzPreconditioners_fwd.hpp>
 

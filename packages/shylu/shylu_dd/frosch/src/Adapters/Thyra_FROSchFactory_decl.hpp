@@ -56,8 +56,8 @@
 #endif
 
 //FROSch
-#include <Thyra_FROSchLinearOp_def.hpp>
-#include <FROSch_Tools_def.hpp>
+#include <Thyra_FROSchLinearOp_decl.hpp>
+#include <FROSch_Tools_decl.hpp>
 
 #include <FROSch_SchwarzPreconditioners_fwd.hpp>
 

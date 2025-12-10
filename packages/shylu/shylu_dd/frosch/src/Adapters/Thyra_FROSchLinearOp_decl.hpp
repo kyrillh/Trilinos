@@ -41,7 +41,7 @@
 #include "Teuchos_ConstNonconstObjectContainer.hpp"
 
 //FROSch
-#include <FROSch_Tools_def.hpp>
+#include <FROSch_Tools_decl.hpp>
 
 //Xpetra
 #include "Xpetra_MapExtractor.hpp"

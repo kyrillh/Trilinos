@@ -11,6 +11,7 @@
 #define _FROSCH_THYRAPRECONDITIONER_DEF_HPP
 
 #include <FROSch_ThyraPreconditioner_decl.hpp>
+#include <FROSch_Solver_def.hpp>
 
 
 namespace FROSch {

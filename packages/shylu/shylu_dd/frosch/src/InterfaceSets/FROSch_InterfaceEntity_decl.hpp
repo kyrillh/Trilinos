@@ -12,8 +12,8 @@
 
 #include <Xpetra_VectorFactory_fwd.hpp>
 
-#include <FROSch_ExtractSubmatrices_def.hpp>
-#include <FROSch_Tools_def.hpp>
+#include <FROSch_ExtractSubmatrices_decl.hpp>
+#include <FROSch_Tools_decl.hpp>
 
 
 namespace FROSch {

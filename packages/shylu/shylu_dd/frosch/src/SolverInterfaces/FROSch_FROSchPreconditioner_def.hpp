@@ -11,6 +11,7 @@
 #define _FROSCH_FROSCHPRECONDITIONER_DEF_HPP
 
 #include <FROSch_FROSchPreconditioner_decl.hpp>
+#include <FROSch_Solver_def.hpp>
 #include <FROSch_TwoLevelBlockPreconditioner_def.hpp>
 #include <FROSch_TwoLevelPreconditioner_def.hpp>
 

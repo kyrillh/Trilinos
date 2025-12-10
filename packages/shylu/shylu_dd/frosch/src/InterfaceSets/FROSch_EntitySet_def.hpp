@@ -11,6 +11,8 @@
 #define _FROSCH_ENTITYSET_DEF_HPP
 
 #include <FROSch_EntitySet_decl.hpp>
+#include <FROSch_InterfaceEntity_def.hpp>
+#include <FROSch_Tools_def.hpp>
 
 
 namespace FROSch {

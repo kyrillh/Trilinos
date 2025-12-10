@@ -14,9 +14,9 @@
 #include <Xpetra_MapFactory_fwd.hpp>
 
 #include <Teuchos_ScalarTraits.hpp>
-#include <FROSch_CoarseSpace_def.hpp>
+#include <FROSch_CoarseSpace_decl.hpp>
 
-#include "FROSch_Tools_def.hpp"
+#include "FROSch_Tools_decl.hpp"
 
 
 namespace FROSch {

@@ -17,7 +17,7 @@
 #include "Teuchos_RCP.hpp"
 
 // FROSch
-#include <FROSch_Tools_def.hpp>
+#include <FROSch_Tools_decl.hpp>
 
 
 namespace FROSch {

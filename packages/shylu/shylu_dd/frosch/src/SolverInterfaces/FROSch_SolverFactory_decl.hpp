@@ -13,30 +13,30 @@
 #include <ShyLU_DDFROSch_config.h>
 
 // FROSch
-#include <FROSch_Solver_def.hpp>
+#include <FROSch_Solver_decl.hpp>
 #if defined(HAVE_SHYLU_DDFROSCH_AMESOS) && defined(HAVE_SHYLU_DDFROSCH_EPETRA)
-#include <FROSch_AmesosSolverEpetra_def.hpp>
+#include <FROSch_AmesosSolverEpetra_decl.hpp>
 #endif
 #ifdef HAVE_SHYLU_DDFROSCH_EPETRA
-#include <FROSch_Amesos2SolverEpetra_def.hpp>
+#include <FROSch_Amesos2SolverEpetra_decl.hpp>
 #endif
-#include <FROSch_Amesos2SolverTpetra_def.hpp>
+#include <FROSch_Amesos2SolverTpetra_decl.hpp>
 #ifdef HAVE_SHYLU_DDFROSCH_BELOS
 #ifdef HAVE_SHYLU_DDFROSCH_EPETRA
-#include <FROSch_BelosSolverEpetra_def.hpp>
+#include <FROSch_BelosSolverEpetra_decl.hpp>
 #endif
-#include <FROSch_BelosSolverTpetra_def.hpp>
+#include <FROSch_BelosSolverTpetra_decl.hpp>
 #endif
-#include <FROSch_FROSchPreconditioner_def.hpp>
+#include <FROSch_FROSchPreconditioner_decl.hpp>
 #ifdef HAVE_SHYLU_DDFROSCH_IFPACK2
-#include <FROSch_Ifpack2PreconditionerTpetra_def.hpp>
+#include <FROSch_Ifpack2PreconditionerTpetra_decl.hpp>
 #endif
 #ifdef HAVE_SHYLU_DDFROSCH_MUELU
-#include <FROSch_MueLuPreconditioner_def.hpp>
+#include <FROSch_MueLuPreconditioner_decl.hpp>
 #endif
 #if defined(HAVE_SHYLU_DDFROSCH_THYRA) && defined(HAVE_SHYLU_DDFROSCH_STRATIMIKOS)
-#include <FROSch_ThyraPreconditioner_def.hpp>
-#include <FROSch_ThyraSolver_def.hpp>
+#include <FROSch_ThyraPreconditioner_decl.hpp>
+#include <FROSch_ThyraSolver_decl.hpp>
 #endif
 
 

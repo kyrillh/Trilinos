@@ -10,7 +10,7 @@
 #ifndef _FROSCH_MULTIPLICATIVEOPERATOR_DECL_HPP
 #define _FROSCH_MULTIPLICATIVEOPERATOR_DECL_HPP
 
-#include <FROSch_SchwarzOperator_def.hpp>
+#include <FROSch_SchwarzOperator_decl.hpp>
 
 
 namespace FROSch {

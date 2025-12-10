@@ -10,7 +10,7 @@
 #ifndef _FROSCH_PARTITIONOFUNITY_DECL_HPP
 #define _FROSCH_PARTITIONOFUNITY_DECL_HPP
 
-#include <FROSch_DDInterface_def.hpp>
+#include <FROSch_DDInterface_decl.hpp>
 
 
 namespace FROSch {

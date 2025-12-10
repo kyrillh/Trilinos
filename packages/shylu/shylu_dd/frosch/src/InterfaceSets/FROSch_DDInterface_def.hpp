@@ -11,6 +11,10 @@
 #define _FROSCH_DDINTERFACE_DEF_HPP
 
 #include <FROSch_DDInterface_decl.hpp>
+#include <FROSch_EntitySet_def.hpp>
+#include <FROSch_ExtractSubmatrices_def.hpp>
+#include <algorithm>
+#include <iterator>
 
 
 namespace FROSch {

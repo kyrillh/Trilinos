@@ -10,7 +10,7 @@
 #ifndef _FROSCH_GDSWCOARSEOPERATOR_DECL_HPP
 #define _FROSCH_GDSWCOARSEOPERATOR_DECL_HPP
 
-#include <FROSch_HarmonicCoarseOperator_def.hpp>
+#include <FROSch_HarmonicCoarseOperator_decl.hpp>
 
 
 namespace FROSch {

@@ -11,6 +11,7 @@
 #define _FROSCH_MUELUPRECONDITIONER_DEF_HPP
 
 #include <FROSch_MueLuPreconditioner_decl.hpp>
+#include <FROSch_Solver_def.hpp>
 
 
 namespace FROSch {

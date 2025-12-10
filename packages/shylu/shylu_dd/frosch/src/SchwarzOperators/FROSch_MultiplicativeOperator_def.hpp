@@ -11,6 +11,7 @@
 #define _FROSCH_MULTIPLICATIVEOPERATOR_DEF_HPP
 
 #include <FROSch_MultiplicativeOperator_decl.hpp>
+#include <FROSch_SchwarzOperator_def.hpp>
 
 
 namespace FROSch {

@@ -75,7 +75,7 @@ namespace FROSch {
 #endif
             } else if (K_->getRowMap()->lib()==UseTpetra) {
                 const CrsMatrixWrap<SC,LO,GO,NO>& crsOp = dynamic_cast<const CrsMatrixWrap<SC,LO,GO,NO>&>(*K_);
-                const TpetraCrsMatrix<SC,LO,GO,NO>& xTpetraMat = dynamic_cast<const TpetraCrsMatrix<SC,LO,GO,NO>&>(*crsOp.getCrsMatrix());
+                const Xpetra::TpetraCrsMatrix<SC,LO,GO,NO>& xTpetraMat = dynamic_cast<const Xpetra::TpetraCrsMatrix<SC,LO,GO,NO>&>(*crsOp.getCrsMatrix());
                 ConstTCrsMatrixPtr tpetraMat = xTpetraMat.getTpetra_CrsMatrix();
                 TEUCHOS_TEST_FOR_EXCEPT(tpetraMat.is_null());
 
@@ -126,7 +126,7 @@ namespace FROSch {
 
             // Convert matrix to Tpetra
             const CrsMatrixWrap<SC,LO,GO,NO>& crsOp = dynamic_cast<const CrsMatrixWrap<SC,LO,GO,NO>&>(*K_);
-            const TpetraCrsMatrix<SC,LO,GO,NO>& xTpetraMat = dynamic_cast<const TpetraCrsMatrix<SC,LO,GO,NO>&>(*crsOp.getCrsMatrix());
+            const Xpetra::TpetraCrsMatrix<SC,LO,GO,NO>& xTpetraMat = dynamic_cast<const Xpetra::TpetraCrsMatrix<SC,LO,GO,NO>&>(*crsOp.getCrsMatrix());
             ConstTCrsMatrixPtr tpetraMat = xTpetraMat.getTpetra_CrsMatrix();
             TEUCHOS_TEST_FOR_EXCEPT(tpetraMat.is_null());
 
@@ -485,12 +485,12 @@ namespace FROSch {
                 Amesos2SolverEpetra_->solve(); // Was ist, wenn man mit der transponierten Matrix lösen will
 #endif
             } else {
-                const TpetraMultiVector<SC,LO,GO,NO> * xTpetraMultiVectorX = dynamic_cast<const TpetraMultiVector<SC,LO,GO,NO> *>(&x);
+                const Xpetra::TpetraMultiVector<SC,LO,GO,NO> * xTpetraMultiVectorX = dynamic_cast<const Xpetra::TpetraMultiVector<SC,LO,GO,NO> *>(&x);
                 TMultiVectorPtr tpetraMultiVectorX = xTpetraMultiVectorX->getTpetra_MultiVector();
 
                 if (YTmp_.is_null()) YTmp_ = XMultiVectorFactory::Build(y.getMap(),x.getNumVectors());
                 *YTmp_ = y;
-                const TpetraMultiVector<SC,LO,GO,NO> * xTpetraMultiVectorY = dynamic_cast<const TpetraMultiVector<SC,LO,GO,NO> *>(YTmp_.get());
+                const Xpetra::TpetraMultiVector<SC,LO,GO,NO> * xTpetraMultiVectorY = dynamic_cast<const Xpetra::TpetraMultiVector<SC,LO,GO,NO> *>(YTmp_.get());
                 TMultiVectorPtr tpetraMultiVectorY = xTpetraMultiVectorY->getTpetra_MultiVector();
 
                 Amesos2SolverTpetra_->setX(tpetraMultiVectorY);
@@ -514,12 +514,12 @@ namespace FROSch {
 #endif
 #ifdef HAVE_SHYLU_DDFROSCH_IFPACK2
         } else if (!ParameterList_->get("SolverType","Amesos2").compare("Ifpack2")) {
-            const TpetraMultiVector<SC,LO,GO,NO> * xTpetraMultiVectorX = dynamic_cast<const TpetraMultiVector<SC,LO,GO,NO> *>(&x);
+            const Xpetra::TpetraMultiVector<SC,LO,GO,NO> * xTpetraMultiVectorX = dynamic_cast<const Xpetra::TpetraMultiVector<SC,LO,GO,NO> *>(&x);
             TMultiVectorPtr tpetraMultiVectorX = xTpetraMultiVectorX->getTpetra_MultiVector();
 
             if (YTmp_.is_null()) YTmp_ = XMultiVectorFactory::Build(y.getMap(),x.getNumVectors());
             *YTmp_ = y;
-            const TpetraMultiVector<SC,LO,GO,NO> * xTpetraMultiVectorY = dynamic_cast<const TpetraMultiVector<SC,LO,GO,NO> *>(YTmp_.get());
+            const Xpetra::TpetraMultiVector<SC,LO,GO,NO> * xTpetraMultiVectorY = dynamic_cast<const Xpetra::TpetraMultiVector<SC,LO,GO,NO> *>(YTmp_.get());
             TMultiVectorPtr tpetraMultiVectorY = xTpetraMultiVectorY->getTpetra_MultiVector();
 
             Ifpack2Preconditioner_->apply(*tpetraMultiVectorX,*tpetraMultiVectorY,mode,alpha,beta);
@@ -650,7 +650,7 @@ namespace FROSch {
 #endif
             } else if (K_->getRowMap()->lib()==UseTpetra) {
                 const CrsMatrixWrap<SC,LO,GO,NO>& crsOp = dynamic_cast<const CrsMatrixWrap<SC,LO,GO,NO>&>(*K_);
-                const TpetraCrsMatrix<SC,LO,GO,NO>& xTpetraMat = dynamic_cast<const TpetraCrsMatrix<SC,LO,GO,NO>&>(*crsOp.getCrsMatrix());
+                const Xpetra::TpetraCrsMatrix<SC,LO,GO,NO>& xTpetraMat = dynamic_cast<const Xpetra::TpetraCrsMatrix<SC,LO,GO,NO>&>(*crsOp.getCrsMatrix());
                 ConstTCrsMatrixPtr tpetraMat = xTpetraMat.getTpetra_CrsMatrix();
                 TEUCHOS_TEST_FOR_EXCEPT(tpetraMat.is_null());
 
@@ -675,7 +675,7 @@ namespace FROSch {
 
             // Convert matrix to Tpetra
             const CrsMatrixWrap<SC,LO,GO,NO>& crsOp = dynamic_cast<const CrsMatrixWrap<SC,LO,GO,NO>&>(*K_);
-            const TpetraCrsMatrix<SC,LO,GO,NO>& xTpetraMat = dynamic_cast<const TpetraCrsMatrix<SC,LO,GO,NO>&>(*crsOp.getCrsMatrix());
+            const Xpetra::TpetraCrsMatrix<SC,LO,GO,NO>& xTpetraMat = dynamic_cast<const Xpetra::TpetraCrsMatrix<SC,LO,GO,NO>&>(*crsOp.getCrsMatrix());
             ConstTCrsMatrixPtr tpetraMat = xTpetraMat.getTpetra_CrsMatrix();
             TEUCHOS_TEST_FOR_EXCEPT(tpetraMat.is_null());
 

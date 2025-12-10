@@ -11,6 +11,7 @@
 #define _FROSCH_GDSWCOARSEOPERATOR_DEF_HPP
 
 #include <FROSch_GDSWCoarseOperator_decl.hpp>
+#include <FROSch_HarmonicCoarseOperator_def.hpp>
 
 
 namespace FROSch {

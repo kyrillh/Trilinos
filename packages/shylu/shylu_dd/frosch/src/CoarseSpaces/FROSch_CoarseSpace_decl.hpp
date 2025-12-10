@@ -16,7 +16,7 @@
 
 #include<KokkosKernels_Utils.hpp>
 
-#include <FROSch_Tools_def.hpp>
+#include <FROSch_Tools_decl.hpp>
 
 
 namespace FROSch {

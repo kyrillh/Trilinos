@@ -21,14 +21,14 @@
 
 #include <ShyLU_DDFROSch_config.h>
 
-#include <FROSch_DDInterface_def.hpp>
-#include <FROSch_EntitySet_def.hpp>
+#include <FROSch_DDInterface_decl.hpp>
+#include <FROSch_EntitySet_decl.hpp>
 
-#include <FROSch_CoarseSpace_def.hpp>
-#include <FROSch_InterfacePartitionOfUnity_def.hpp>
-#include <FROSch_LocalPartitionOfUnityBasis_def.hpp>
+#include <FROSch_CoarseSpace_decl.hpp>
+#include <FROSch_InterfacePartitionOfUnity_decl.hpp>
+#include <FROSch_LocalPartitionOfUnityBasis_decl.hpp>
 
-#include <FROSch_SolverFactory_def.hpp>
+#include <FROSch_SolverFactory_decl.hpp>
 
 // TODO: Auf const überprüfen
 // TODO: #ifndef überprüfen ??????

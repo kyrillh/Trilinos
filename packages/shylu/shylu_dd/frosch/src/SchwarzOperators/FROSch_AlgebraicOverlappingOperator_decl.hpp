@@ -10,7 +10,7 @@
 #ifndef _FROSCH_ALGEBRAICOVERLAPPINGOPERATOR_DECL_HPP
 #define _FROSCH_ALGEBRAICOVERLAPPINGOPERATOR_DECL_HPP
 
-#include <FROSch_OverlappingOperator_def.hpp>
+#include <FROSch_OverlappingOperator_decl.hpp>
 
 
 namespace FROSch {

@@ -11,6 +11,7 @@
 #define _FROSCH_OVERLAPPINGOPERATOR_DEF_HPP
 
 #include <FROSch_OverlappingOperator_decl.hpp>
+#include <FROSch_SchwarzOperator_def.hpp>
 
 
 namespace FROSch {

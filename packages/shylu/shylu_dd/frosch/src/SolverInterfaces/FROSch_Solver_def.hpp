@@ -11,6 +11,7 @@
 #define _FROSCH_SOLVER_DEF_HPP
 
 #include <FROSch_Solver_decl.hpp>
+#include <FROSch_Tools_def.hpp>
 
 
 namespace FROSch {

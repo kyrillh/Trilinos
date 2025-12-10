@@ -10,7 +10,7 @@
 #ifndef _FROSCH_TWOLEVELBLOCKPRECONDITIONER_DECL_HPP
 #define _FROSCH_TWOLEVELBLOCKPRECONDITIONER_DECL_HPP
 
-#include <FROSch_OneLevelPreconditioner_def.hpp>
+#include <FROSch_OneLevelPreconditioner_decl.hpp>
 
 
 namespace FROSch {

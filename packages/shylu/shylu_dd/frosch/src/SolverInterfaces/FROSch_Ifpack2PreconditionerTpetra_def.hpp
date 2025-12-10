@@ -11,6 +11,7 @@
 #define _FROSCH_IFPACK2PRECONDITIONERTPETRA_DEF_HPP
 
 #include <FROSch_Ifpack2PreconditionerTpetra_decl.hpp>
+#include <FROSch_Solver_def.hpp>
 
 #include "Ifpack2_Details_getCrsMatrix.hpp"
 #include "Ifpack2_RILUK_decl.hpp"
@@ -57,11 +58,11 @@ namespace FROSch {
         FROSCH_TIMER_START_SOLVER(applyTime,"Ifpack2PreconditionerTpetra::apply");
         FROSCH_ASSERT(this->IsComputed_,"FROSch::Ifpack2PreconditionerTpetra: !this->IsComputed_.");
 
-        const TpetraMultiVector<SC,LO,GO,NO> * xTpetraMultiVectorX = dynamic_cast<const TpetraMultiVector<SC,LO,GO,NO> *>(&x);
+        const Xpetra::TpetraMultiVector<SC,LO,GO,NO> * xTpetraMultiVectorX = dynamic_cast<const Xpetra::TpetraMultiVector<SC,LO,GO,NO> *>(&x);
         FROSCH_ASSERT(xTpetraMultiVectorX,"FROSch::Ifpack2PreconditionerTpetra: dynamic_cast failed.");
         TMultiVectorPtr tpetraMultiVectorX = xTpetraMultiVectorX->getTpetra_MultiVector();
 
-        const TpetraMultiVector<SC,LO,GO,NO> * xTpetraMultiVectorY = dynamic_cast<const TpetraMultiVector<SC,LO,GO,NO> *>(&y);
+        const Xpetra::TpetraMultiVector<SC,LO,GO,NO> * xTpetraMultiVectorY = dynamic_cast<const Xpetra::TpetraMultiVector<SC,LO,GO,NO> *>(&y);
         FROSCH_ASSERT(xTpetraMultiVectorY,"FROSch::Ifpack2PreconditionerTpetra: dynamic_cast failed.");
         TMultiVectorPtr tpetraMultiVectorY = xTpetraMultiVectorY->getTpetra_MultiVector();
 
@@ -96,7 +97,7 @@ namespace FROSch {
     {
         if (this->useRILUK) {
             const CrsMatrixWrap<SC,LO,GO,NO>& crsOp = dynamic_cast<const CrsMatrixWrap<SC,LO,GO,NO>&>(*this->K_);
-            const TpetraCrsMatrix<SC,LO,GO,NO>& xTpetraMat = dynamic_cast<const TpetraCrsMatrix<SC,LO,GO,NO>&>(*crsOp.getCrsMatrix());
+            const Xpetra::TpetraCrsMatrix<SC,LO,GO,NO>& xTpetraMat = dynamic_cast<const Xpetra::TpetraCrsMatrix<SC,LO,GO,NO>&>(*crsOp.getCrsMatrix());
             ConstTCrsMatrixPtr tpetraMat = xTpetraMat.getTpetra_CrsMatrix();
 
             auto RILUPreconditioner = rcp_dynamic_cast<Ifpack2::RILUK<TRowMatrix>>(Ifpack2Preconditioner_);
@@ -127,7 +128,7 @@ namespace FROSch {
         FROSCH_ASSERT(this->K_->getRowMap()->lib()==UseTpetra,"FROSch::Ifpack2PreconditionerTpetra: Not compatible with Epetra.")
 
         const CrsMatrixWrap<SC,LO,GO,NO>& crsOp = dynamic_cast<const CrsMatrixWrap<SC,LO,GO,NO>&>(*this->K_);
-        const TpetraCrsMatrix<SC,LO,GO,NO>& xTpetraMat = dynamic_cast<const TpetraCrsMatrix<SC,LO,GO,NO>&>(*crsOp.getCrsMatrix());
+        const Xpetra::TpetraCrsMatrix<SC,LO,GO,NO>& xTpetraMat = dynamic_cast<const Xpetra::TpetraCrsMatrix<SC,LO,GO,NO>&>(*crsOp.getCrsMatrix());
         ConstTCrsMatrixPtr tpetraMat = xTpetraMat.getTpetra_CrsMatrix();
         TEUCHOS_TEST_FOR_EXCEPT(tpetraMat.is_null());
 

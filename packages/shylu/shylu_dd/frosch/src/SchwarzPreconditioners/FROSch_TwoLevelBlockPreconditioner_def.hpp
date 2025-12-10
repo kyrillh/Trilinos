@@ -11,6 +11,7 @@
 #define _FROSCH_TWOLEVELBLOCKPRECONDITIONER_DEF_HPP
 #define FindOneEntryOnlyRowsGlobal_Matrix
 #include <FROSch_TwoLevelBlockPreconditioner_decl.hpp>
+#include <FROSch_OneLevelPreconditioner_def.hpp>
 
 
 namespace FROSch {

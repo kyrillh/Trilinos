@@ -11,6 +11,31 @@
 #define _FROSCH_SOLVER_FACTORY_DEF_HPP
 
 #include "FROSch_SolverFactory_decl.hpp"
+#include <FROSch_Solver_def.hpp>
+#if defined(HAVE_SHYLU_DDFROSCH_AMESOS) && defined(HAVE_SHYLU_DDFROSCH_EPETRA)
+#include <FROSch_AmesosSolverEpetra_def.hpp>
+#endif
+#ifdef HAVE_SHYLU_DDFROSCH_EPETRA
+#include <FROSch_Amesos2SolverEpetra_def.hpp>
+#endif
+#include <FROSch_Amesos2SolverTpetra_def.hpp>
+#ifdef HAVE_SHYLU_DDFROSCH_BELOS
+#ifdef HAVE_SHYLU_DDFROSCH_EPETRA
+#include <FROSch_BelosSolverEpetra_def.hpp>
+#endif
+#include <FROSch_BelosSolverTpetra_def.hpp>
+#endif
+#include <FROSch_FROSchPreconditioner_def.hpp>
+#ifdef HAVE_SHYLU_DDFROSCH_IFPACK2
+#include <FROSch_Ifpack2PreconditionerTpetra_def.hpp>
+#endif
+#ifdef HAVE_SHYLU_DDFROSCH_MUELU
+#include <FROSch_MueLuPreconditioner_def.hpp>
+#endif
+#if defined(HAVE_SHYLU_DDFROSCH_THYRA) && defined(HAVE_SHYLU_DDFROSCH_STRATIMIKOS)
+#include <FROSch_ThyraPreconditioner_def.hpp>
+#include <FROSch_ThyraSolver_def.hpp>
+#endif
 
 #include "Stratimikos_FROSch_def.hpp"
 

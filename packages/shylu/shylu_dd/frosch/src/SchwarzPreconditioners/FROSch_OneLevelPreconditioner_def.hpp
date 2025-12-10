@@ -11,6 +11,7 @@
 #define _FROSCH_ONELEVELPRECONDITIONER_DEF_HPP
 
 #include <FROSch_OneLevelPreconditioner_decl.hpp>
+#include <FROSch_SchwarzPreconditioner_def.hpp>
 
 
 namespace FROSch {

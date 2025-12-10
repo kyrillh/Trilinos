@@ -11,6 +11,7 @@
 #define _THYRA_FROSCH_LINEAR_OP_DEF_HPP
 
 #include "Thyra_FROSchLinearOp_decl.hpp"
+#include <FROSch_Tools_def.hpp>
 
 
 #ifdef HAVE_SHYLU_DDFROSCH_THYRA

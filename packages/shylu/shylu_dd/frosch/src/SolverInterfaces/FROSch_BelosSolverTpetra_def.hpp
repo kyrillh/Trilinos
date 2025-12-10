@@ -11,6 +11,7 @@
 #define _FROSCH_BELOSSOLVERTPETRA_DEF_HPP
 
 #include <FROSch_BelosSolverTpetra_decl.hpp>
+#include <FROSch_Solver_def.hpp>
 
 
 namespace FROSch {
@@ -47,12 +48,12 @@ namespace FROSch {
         FROSCH_TIMER_START_SOLVER(applyTime,"BelosSolverTpetra::apply");
         FROSCH_ASSERT(this->IsComputed_,"FROSch::BelosSolverTpetra: !this->IsComputed_.");
 
-        const TpetraMultiVector<SC,LO,GO,NO> * xTpetraMultiVectorX = dynamic_cast<const TpetraMultiVector<SC,LO,GO,NO> *>(&x);
+        const Xpetra::TpetraMultiVector<SC,LO,GO,NO> * xTpetraMultiVectorX = dynamic_cast<const Xpetra::TpetraMultiVector<SC,LO,GO,NO> *>(&x);
         FROSCH_ASSERT(xTpetraMultiVectorX,"FROSch::BelosSolverTpetra: dynamic_cast failed.");
         TMultiVectorPtr tpetraMultiVectorX = xTpetraMultiVectorX->getTpetra_MultiVector();
 
         if (Y_.is_null()) Y_ = XMultiVectorFactory::Build(y.getMap(),y.getNumVectors());
-        const TpetraMultiVector<SC,LO,GO,NO> * xTpetraMultiVectorY = dynamic_cast<const TpetraMultiVector<SC,LO,GO,NO> *>(Y_.get());
+        const Xpetra::TpetraMultiVector<SC,LO,GO,NO> * xTpetraMultiVectorY = dynamic_cast<const Xpetra::TpetraMultiVector<SC,LO,GO,NO> *>(Y_.get());
         FROSCH_ASSERT(xTpetraMultiVectorY,"FROSch::BelosSolverTpetra: dynamic_cast failed.");
         TMultiVectorPtr tpetraMultiVectorY = xTpetraMultiVectorY->getTpetra_MultiVector();
 
@@ -71,7 +72,7 @@ namespace FROSch {
         FROSCH_ASSERT(!this->K_.is_null(),"FROSch::BelosSolverTpetra: K_ is null.");
 
         const CrsMatrixWrap<SC,LO,GO,NO>& crsOp = dynamic_cast<const CrsMatrixWrap<SC,LO,GO,NO>&>(*this->K_);
-        const TpetraCrsMatrix<SC,LO,GO,NO>& xTpetraMat = dynamic_cast<const TpetraCrsMatrix<SC,LO,GO,NO>&>(*crsOp.getCrsMatrix());
+        const Xpetra::TpetraCrsMatrix<SC,LO,GO,NO>& xTpetraMat = dynamic_cast<const Xpetra::TpetraCrsMatrix<SC,LO,GO,NO>&>(*crsOp.getCrsMatrix());
         ConstTCrsMatrixPtr tpetraMat = xTpetraMat.getTpetra_CrsMatrix();
         TEUCHOS_TEST_FOR_EXCEPT(tpetraMat.is_null());
 
@@ -91,7 +92,7 @@ namespace FROSch {
         FROSCH_ASSERT(this->K_->getRowMap()->lib()==UseTpetra,"FROSch::BelosSolverTpetra: Not compatible with Epetra.")
 
         const CrsMatrixWrap<SC,LO,GO,NO>& crsOp = dynamic_cast<const CrsMatrixWrap<SC,LO,GO,NO>&>(*this->K_);
-        const TpetraCrsMatrix<SC,LO,GO,NO>& xTpetraMat = dynamic_cast<const TpetraCrsMatrix<SC,LO,GO,NO>&>(*crsOp.getCrsMatrix());
+        const Xpetra::TpetraCrsMatrix<SC,LO,GO,NO>& xTpetraMat = dynamic_cast<const Xpetra::TpetraCrsMatrix<SC,LO,GO,NO>&>(*crsOp.getCrsMatrix());
         ConstTCrsMatrixPtr tpetraMat = xTpetraMat.getTpetra_CrsMatrix();
         TEUCHOS_TEST_FOR_EXCEPT(tpetraMat.is_null());
 

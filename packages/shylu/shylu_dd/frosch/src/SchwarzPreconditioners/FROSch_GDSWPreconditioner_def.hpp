@@ -11,6 +11,9 @@
 #define _FROSCH_GDSWPRECONDITIONER_DEF_HPP
 
 #include <FROSch_GDSWPreconditioner_decl.hpp>
+#include <FROSch_OneLevelPreconditioner_def.hpp>
+#include <FROSch_AlgebraicOverlappingPreconditioner_def.hpp>
+#include <FROSch_GDSWCoarseOperator_def.hpp>
 
 
 namespace FROSch {

@@ -10,9 +10,9 @@
 #ifndef _FROSCH_ENTITYSET_DECL_HPP
 #define _FROSCH_ENTITYSET_DECL_HPP
 
-#include <FROSch_InterfaceEntity_def.hpp>
+#include <FROSch_InterfaceEntity_decl.hpp>
 
-#include <FROSch_Tools_def.hpp>
+#include <FROSch_Tools_decl.hpp>
 
 
 namespace FROSch {

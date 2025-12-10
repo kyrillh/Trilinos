@@ -11,6 +11,7 @@
 #define _FROSCH_AMESOS2SOLVEREPETRA_DEF_HPP
 
 #include <FROSch_Amesos2SolverEpetra_decl.hpp>
+#include <FROSch_Solver_def.hpp>
 
 
 namespace FROSch {

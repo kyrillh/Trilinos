@@ -17,10 +17,10 @@
 #include <Xpetra_ExportFactory_fwd.hpp>
 #include <Xpetra_CrsGraphFactory.hpp>
 
-#include <FROSch_EntitySet_def.hpp>
+#include <FROSch_EntitySet_decl.hpp>
 #include <FROSch_InterfaceEntity_decl.hpp>
 
-#include <FROSch_ExtractSubmatrices_def.hpp>
+#include <FROSch_ExtractSubmatrices_decl.hpp>
 
 
 namespace FROSch {

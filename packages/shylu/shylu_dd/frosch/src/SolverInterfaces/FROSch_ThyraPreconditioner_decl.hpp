@@ -17,7 +17,7 @@
 #include <Xpetra_ThyraUtils.hpp>
 
 // FROSch
-#include <FROSch_Solver_def.hpp>
+#include <FROSch_Solver_decl.hpp>
 
 
 namespace FROSch {

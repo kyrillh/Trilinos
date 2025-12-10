@@ -12,6 +12,8 @@
 
 #include <FROSch_SchwarzOperator_decl.hpp>
 
+#include <FROSch_LocalPartitionOfUnityBasis_def.hpp>
+#include <FROSch_SolverFactory_def.hpp>
 
 namespace FROSch {
 

@@ -11,6 +11,7 @@
 #define _FROSCH_ALGEBRAICOVERLAPPINGPRECONDITIONER_DEF_HPP
 
 #include <FROSch_AlgebraicOverlappingPreconditioner_decl.hpp>
+#include <FROSch_SchwarzPreconditioner_def.hpp>
 
 
 namespace FROSch {

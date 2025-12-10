@@ -11,6 +11,7 @@
 #define _FROSCH_INTERFACEPARTITIONOFUNITY_DEF_HPP
 
 #include <FROSch_InterfacePartitionOfUnity_decl.hpp>
+#include <FROSch_PartitionOfUnity_def.hpp>
 
 
 namespace FROSch {

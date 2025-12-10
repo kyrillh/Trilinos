@@ -11,6 +11,11 @@
 #define _FROSCH_IPOUHARMONICCOARSEOPERATOR_DEF_HPP
 
 #include <FROSch_IPOUHarmonicCoarseOperator_decl.hpp>
+#include <FROSch_ConstantPartitionOfUnity_def.hpp>
+#include <FROSch_GDSWInterfacePartitionOfUnity_def.hpp>
+#include <FROSch_GDSWStarInterfacePartitionOfUnity_def.hpp>
+#include <FROSch_RGDSWInterfacePartitionOfUnity_def.hpp>
+#include <FROSch_HarmonicCoarseOperator_def.hpp>
 
 
 namespace FROSch {
