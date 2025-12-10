@@ -12,7 +12,6 @@
 
 #include "FROSch_InterfaceEntity_decl.hpp"
 #include <FROSch_RGDSWInterfacePartitionOfUnity_decl.hpp>
-#include <vector>
 #include <FROSch_GDSWInterfacePartitionOfUnity_def.hpp>
 
 

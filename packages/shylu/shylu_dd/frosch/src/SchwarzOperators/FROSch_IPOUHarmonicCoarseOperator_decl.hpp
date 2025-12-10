@@ -10,12 +10,12 @@
 #ifndef _FROSCH_IPOUHARMONICCOARSEOPERATOR_DECL_HPP
 #define _FROSCH_IPOUHARMONICCOARSEOPERATOR_DECL_HPP
 
-#include <FROSch_ConstantPartitionOfUnity_def.hpp>
-#include <FROSch_GDSWInterfacePartitionOfUnity_def.hpp>
-#include <FROSch_GDSWStarInterfacePartitionOfUnity_def.hpp>
-#include <FROSch_RGDSWInterfacePartitionOfUnity_def.hpp>
+#include <FROSch_ConstantPartitionOfUnity_decl.hpp>
+#include <FROSch_GDSWInterfacePartitionOfUnity_decl.hpp>
+#include <FROSch_GDSWStarInterfacePartitionOfUnity_decl.hpp>
+#include <FROSch_RGDSWInterfacePartitionOfUnity_decl.hpp>
 
-#include <FROSch_HarmonicCoarseOperator_def.hpp>
+#include <FROSch_HarmonicCoarseOperator_decl.hpp>
 #include <cstddef>
 
 #include <FROSch_HarmonicCoarseOperator_decl.hpp>
