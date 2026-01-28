@@ -90,7 +90,10 @@ namespace FROSch {
         mutable XMultiVectorPtr XOverlap_;
         mutable XMultiVectorPtr XOverlapTmp_;
         mutable XMultiVectorPtr YOverlap_;
-
+        // Member variables used for the local pressure projections
+        mutable XMultiVectorPtr aProjection_;
+        mutable double sumAA_; // sum ocurring in pressure projection that in only computed once
+ 
         XImportPtr Scatter_;
 
         SolverPtr SubdomainSolver_;

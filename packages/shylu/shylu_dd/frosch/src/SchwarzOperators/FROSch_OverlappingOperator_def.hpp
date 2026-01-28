@@ -33,8 +33,13 @@ namespace FROSch {
         } else if (!this->ParameterList_->get("Combine Values in Overlap","Restricted").compare("Restricted")) {
             Combine_ = Restricted;
         }
-    }
 
+        if (this->ParameterList_->sublist("Parameter").get("Use Pressure Projection",false) || this->ParameterList_->get("Use Pressure Correction",false)) {
+            this->sumAA_ = -1;
+            this->aProjection_ = ExtractPtrFromParameterList<XMultiVector >(*this->ParameterList_,"Projection");
+            FROSCH_ASSERT(!this->aProjection_.is_null(),"FROSch::OverlappingOperator: the projection extracted from the parameter list does not exist.");
+        }
+    }
     template <class SC,class LO,class GO,class NO>
     OverlappingOperator<SC,LO,GO,NO>::~OverlappingOperator()
     {
@@ -95,6 +100,43 @@ namespace FROSch {
         }
         SubdomainSolver_->apply(*XOverlap_,*YOverlap_,mode,ScalarTraits<SC>::one(),ScalarTraits<SC>::zero());
         YOverlap_->replaceMap(OverlappingMap_);
+
+        // Check for different flags since Lea's version for linear Schwarz built into the FEDDLib mixes Pressure
+        // Projection and Pressure Correction
+        if (!this->aProjection_.is_null() && (this->ParameterList_->get("Use Pressure Projection", false) ||
+                                              this->ParameterList_->get("Use Local Pressure Correction", false))) {
+
+            FROSCH_TIMER_START_LEVELID(applyTime, "Apply Pressure Projection");
+
+            RCP<FancyOStream> fancy = fancyOStream(rcpFromRef(cout));
+            XMultiVectorPtr a =
+                MultiVectorFactory<SC, LO, GO, NO>::Build(OverlappingMap_, x.getNumVectors());
+
+            // Get the projection on the overlapping subdomain
+            // INSERT and ADD should be the same here since we are going from unique to overlapping
+            a->doImport(*this->aProjection_, *Scatter_, INSERT);
+
+            // Perform local dot products
+            SCVecPtr a_values = a->getDataNonConst(0);
+            SCVecPtr y_values = YOverlap_->getDataNonConst(0);
+            double sumAY = 0.;
+            for (int i = 0; i < a_values.size(); i++) {
+                sumAY += a_values[i] * y_values[i];
+            }
+
+            double sumAA = 0.;
+            if (this->sumAA_ < 0.) {
+                for (int i = 0; i < a_values.size(); i++) {
+                    sumAA += a_values[i] * a_values[i];
+                }
+                this->sumAA_ = sumAA;
+            }
+            double aint = 1. / this->sumAA_;
+            SC scaling = aint * sumAY;
+
+            // update does this = beta*this + alpha*x
+            YOverlap_->update(-scaling, *a, 1);
+        }
 
         XTmp_->putScalar(ScalarTraits<SC>::zero());
         ConstXMapPtr yMap = y.getMap();
@@ -159,6 +201,41 @@ namespace FROSch {
         if (!usePreconditionerOnly && mode != NO_TRANS) {
             this->K_->apply(*XTmp_,*XTmp_,mode,ScalarTraits<SC>::one(),ScalarTraits<SC>::zero());
         }
+        // TODO: [KH] Lea tried a global projection approach here. She wasn't sure if she was using the correct definition and this code made the solver performance worse.
+	    // We could use the global approach of the projection and apply it here! Should have same convergence and same number of iterations
+        // if (!this->aProjection_.is_null() && (this->ParameterList_->get("Use Global Pressure Projection",false) == true)){
+
+        //     RCP<FancyOStream> fancy = fancyOStream(rcpFromRef(cout));
+        //     //XMultiVectorPtr aGlobal = MultiVectorFactory<SC,LO,GO,NO>::Build(x.getMap(),x.getNumVectors());
+        //     // Distribute it with overlap based on overlapping matrix
+        //     //aGlobal->doImport(*this->aProjection_,*Scatter_,INSERT);
+        //     //a->replaceMap(OverlappingMap_);
+        //     //a->describe(*fancy,VERB_EXTREME);
+        //     //YOverlap_->describe(*fancy,VERB_EXTREME);
+        //     // Define constant MVs for dot operations
+        //     XMultiVectorConstPtr XTmpConst = XTmp_;
+        //     XMultiVectorConstPtr aConst = this->aProjection_;    
+
+        //     // compute a*y 
+        //     Teuchos::Array<SC> sumAY(1);
+        //     this->aProjection_->dot(*XTmpConst,sumAY);
+        //     // compute (a^T*a)^-1
+        //     Teuchos::Array<SC> sumAA(1);
+        //     this->aProjection_->dot(*aConst,sumAA);
+        //     double aint = 1./sumAA[0];
+        //     SC scaling = aint*sumAY[0]; // scaling for a vector : I * y - scaling * a , with scaling = (a^T*a)^-1 * a * y 
+        //     //cout << " Processor " << YOverlap_->getMap()->getComm()->getRank() << " SumAA " << sumAA << " sumAY " << sumAY << " aInt " << aint << " scaling " << scaling << endl;
+        //     //YOverlap_->describe(*fancy,VERB_EXTREME);
+        //     XTmp_->update(-scaling,*aConst,1);
+        //     //YOverlap_->describe(*fancy,VERB_EXTREME);
+
+        //     // Sanity Check
+        //     Teuchos::Array<SC> ortho(1);
+        //     XTmp_->dot(*aConst,ortho);
+        //     if(abs(ortho[0]) >= 1.e-12 )
+        //         cout << " ########### ORTHO CHECK on proc " << YOverlap_->getMap()->getComm()->getRank() << "= "  << ortho[0] << " ############ " << endl;
+        // }
+
         y.update(alpha,*XTmp_,beta);
     }
 
