@@ -65,6 +65,7 @@ namespace FROSch {
         return DDInterface_;
     }
 
+    // Part of the boundary framework
     template <class SC,class LO,class GO,class NO>
     void InterfacePartitionOfUnity<SC,LO,GO,NO>::addBoundaryNodes(const GOVecView boundaryDofs, const EntityFlag type, const int offset){
         DDInterface_->addBoundaryNodes(boundaryDofs, type, offset);

@@ -85,6 +85,7 @@ namespace FROSch {
         
         virtual int computePartitionOfUnity(ConstXMultiVectorPtr nodeList = null) = 0;
 
+        // Part of the boundary framework
         void addBoundaryNodes(const GOVecView boundaryDofs, const EntityFlag type, const int offset);
 
     protected:

@@ -165,6 +165,7 @@ namespace FROSch {
         return 0;
     }
 
+    // Part of the boundary framework
     template <class SC, class LO, class GO, class NO>
     void DDInterface<SC, LO, GO, NO>::addBoundaryNodes(const GOVecView boundaryDofs, const EntityFlag type,
                                                        const int dofOffset) {
@@ -756,6 +757,7 @@ namespace FROSch {
         Roots_->setRootID();
 
         // Find Leafs i.e. offspring that don't have offspring themselves
+        // NOTE: [KH] The boundary framework might have broken the usage of leaves (leafs) in GDSW-star.
         for (UN i=0; i<EntitySetVector_.size(); i++) {
             EntitySetPtr tmpLeafs = EntitySetVector_[i]->findLeafs();
             Leafs_->addEntitySet(tmpLeafs);
@@ -807,6 +809,7 @@ namespace FROSch {
         return 0;
     }
 
+    // Part of the boundary framework
     template <class SC,class LO,class GO,class NO>
     int DDInterface<SC,LO,GO,NO>::computeDistancesOnBoundary(UN dimension, ConstXMultiVectorPtr &nodeList){
         // Calculate distances
@@ -816,6 +819,7 @@ namespace FROSch {
         return 0;
     }
 
+    // Part of the boundary framework
     template <class SC,class LO,class GO,class NO>
     int DDInterface<SC,LO,GO,NO>::computeDistancesToDirichletBoundary(UN dimension, ConstXMultiVectorPtr &nodeList){
         for (UN i=0; i<EntitySetVector_.size(); i++) {

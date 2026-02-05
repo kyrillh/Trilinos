@@ -139,6 +139,8 @@ namespace FROSch {
         int removeDirichletNodes(GOVecView dirichletBoundaryDofs);
 
         /**
+         * Part of the boundary framework.
+         * 
          * Add nodes to EntitySetVector_[1] and move them from Interior_ to Interface_ as specified in boundaryDofs. The
          * nodes are added to EntitySetVector_[1] as a single entity. A later call to e.g. sortInterface() is required
          * to split this into strictly connected entities i.e. entities where the union of the support of the
@@ -251,6 +253,8 @@ namespace FROSch {
                                          EntityFlagVecPtr flags = null);
 
         /**
+         * Part of the boundary framework.
+         * 
          * @brief wrapper function to call FROSch_InterfaceEntity::computeDistancesOnBoundary()
          * @param dimension Dimension of the problem
          * @param nodeList The coordinates of the finite element nodes in this subdomain. Required to calculate inverse Euclidean distances.
@@ -258,6 +262,8 @@ namespace FROSch {
         int computeDistancesOnBoundary(UN dimension, ConstXMultiVectorPtr &nodeList);
 
         /**
+         * Part of the boundary framework.
+         * 
          * @brief wrapper function to call FROSch_EntitySet::computeDistancesToDirichletBoundary()
          * @param dimension Dimension of the problem
          * @param nodeList The coordinates of the finite element nodes in this subdomain. Required to calculate inverse Euclidean distances.

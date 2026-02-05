@@ -147,6 +147,7 @@ namespace FROSch {
         return 0;
     }
 
+    // Part of the boundary framework
     template <class SC,class LO,class GO,class NO>
     int InterfaceEntity<SC,LO,GO,NO>::removeNode(const Node<SC, LO, GO> &node)
     {
@@ -168,6 +169,7 @@ namespace FROSch {
         return 0;
     }
 
+    // Part of the boundary framework
     template <class SC, class LO, class GO, class NO> int InterfaceEntity<SC, LO, GO, NO>::sortUniqueByLocalID() {
         // Sort not unique
         std::sort(NodeVector_.begin(), NodeVector_.end(),
@@ -181,6 +183,7 @@ namespace FROSch {
         return 0;
     }
 
+    // Part of the boundary framework
     template <class SC,class LO,class GO,class NO>
     int InterfaceEntity<SC,LO,GO,NO>::reindexGammaID(){
         for (int i = 0; i < NodeVector_.size(); i++){
@@ -227,6 +230,7 @@ namespace FROSch {
         return 0;
     }
 
+    // Part of the boundary framework
     template <class SC, class LO, class GO, class NO>
     int InterfaceEntity<SC, LO, GO, NO>::setGammaIDs(const int i, const LO gammaNodeID) {
         NodeVector_[i].NodeIDGamma_ = gammaNodeID;
@@ -350,6 +354,7 @@ namespace FROSch {
                                                               DistanceFunction distanceFunction)
     {
         if (Roots_->getNumEntities()>0) {
+            // DistancesVector_[i][j] is the distance from node i in the current entity to root j i.e. min distance to a node in root j
             DistancesVector_.resize(getNumNodes());
             for (UN i=0; i<getNumNodes(); i++) {
                 DistancesVector_[i].resize(Roots_->getNumEntities()+1,numeric_limits<SC>::max());
@@ -397,7 +402,7 @@ namespace FROSch {
             }
 
             // The last "column" stores the sum of the distances from node i to all of the roots.
-            // Required for the inverst Euclidean formulation.
+            // Required for the inverse Euclidean formulation.
             for (UN i=0; i<NodeVector_.size(); i++) {
                 DistancesVector_[i][Roots_->getNumEntities()] = ScalarTraits<SC>::zero();
                 for (UN j=0; j<Roots_->getNumEntities(); j++) {
@@ -456,6 +461,7 @@ namespace FROSch {
         return entity;
     }
 
+    // Part of the boundary framework
     template <class SC, class LO, class GO, class NO>
     int InterfaceEntity<SC, LO, GO, NO>::computeDistancesOnBoundary(UN dimension, ConstXMultiVectorPtr &nodeList,
                                                                     ArrayRCP<EntitySetPtr> entitySetVector) {
@@ -633,6 +639,7 @@ namespace FROSch {
         }
         return 0;
     }
+    // Part of the boundary framework
     template <class SC, class LO, class GO, class NO>
     int InterfaceEntity<SC, LO, GO, NO>::computeDistancesToDirichletBoundary(UN dimension,
                                                                              ConstXMultiVectorPtr &nodeList,
@@ -880,6 +887,7 @@ namespace FROSch {
         return DistancesVector_[iDNode][iDRoot];
     }
 
+    // Part of the boundary framework
     template <class SC,class LO,class GO,class NO>
     const typename InterfaceEntity<SC,LO,GO,NO>::NodeVec& InterfaceEntity<SC,LO,GO,NO>::getConstNodeVectorRef() const{
         return NodeVector_;

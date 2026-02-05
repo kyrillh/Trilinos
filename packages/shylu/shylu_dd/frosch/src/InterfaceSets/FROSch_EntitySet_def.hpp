@@ -232,9 +232,10 @@ namespace FROSch {
         return 0;
     }
 
+    // Part of the boundary framework
     template <class SC, class LO, class GO, class NO>
     int EntitySet<SC, LO, GO, NO>::computeDistancesToDirichletBoundary(UN dimension, ConstXMultiVectorPtr &nodeList,
-                                                                       ArrayRCP<EntitySetPtr> entitySetVector) {
+                                                      ArrayRCP<EntitySetPtr> entitySetVector) {
         for (UN i = 0; i < getNumEntities(); i++) {
             getEntity(i)->computeDistancesToDirichletBoundary(dimension, nodeList, entitySetVector);
         }

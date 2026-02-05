@@ -116,11 +116,14 @@ namespace FROSch {
 
         int removeNode(UN iD);
 
+        // Part of the boundary framework
         int removeNode(const Node<SC, LO, GO>& node);
 
         int sortByGlobalID();
 
+        // Part of the boundary framework
         int reindexGammaID();
+        // Part of the boundary framework
         int sortUniqueByLocalID();
 
         int setUniqueID(GO uniqueID);
@@ -133,6 +136,7 @@ namespace FROSch {
 
         int setUniqueIDToFirstGlobalID();
 
+        // Part of the boundary framework
         int setGammaIDs(const int i, const LO gammaNodeID);
 
         int resetEntityType(EntityType type);
@@ -158,6 +162,8 @@ namespace FROSch {
         InterfaceEntityPtr divideEntity(ConstXMatrixPtr matrix);
 
         /**
+         * Part of the boundary framework.
+         * 
          * @brief Computes the distance of CustomBC nodes to a single neighboring Dirichlet entity. This is to enable
          * modification of the RGDSW coarse space to have an inverse Euclidean drop along CustomBC boundary entities
          * that have a CustomBC and Dirichlet boundary entity as neighbors. This was first developed to improve the
@@ -173,6 +179,8 @@ namespace FROSch {
                                         ArrayRCP<EntitySetPtr> entitySetVector);
 
         /**
+         * Part of the boundary framework.
+         * 
          * @brief Computes the inverse Euclidean distance on interface edges that end at a Dirichlet boundary
          * @param dimension Dimension of the problem
          * @param nodeList List of the node coords on the current subdomain. Required to calculate distances
@@ -228,6 +236,7 @@ namespace FROSch {
         SC getDistanceToRoot(UN iDNode,
                              UN iDRoot) const;
 
+        // Part of the boundary framework
         const NodeVec& getConstNodeVectorRef() const;
 
     protected:
