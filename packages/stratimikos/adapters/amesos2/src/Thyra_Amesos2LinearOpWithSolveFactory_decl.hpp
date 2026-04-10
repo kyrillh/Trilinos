@@ -115,6 +115,19 @@ public:
     ESupportSolveUse *supportSolveUse
     ) const;
 
+  /** \brief Reinitialize with a new matrix, reusing symbolic factorization.
+   *
+   * This assumes the new matrix has the same sparsity pattern as the
+   * previously initialized matrix. Only numeric factorization is redone.
+   *
+   * \param fwdOpSrc Wrapper for the matrix being solved
+   * \param Op Wrapper for the linear solver object. A linear operator with solver object in this case.
+   */
+  void initializeAndReuseOp(
+    const Teuchos::RCP<const LinearOpSourceBase<Scalar> > &fwdOpSrc,
+    LinearOpWithSolveBase<Scalar> *Op
+    ) const override;
+
   //@}
 
   /** @name Overridden from ParameterListAcceptor */

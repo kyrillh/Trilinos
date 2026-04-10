@@ -80,7 +80,15 @@ namespace FROSch {
         int updateMatrix(ConstXMatrixPtr k,
                          bool reuseInitialize=false);
 
+        //! Adopt an externally created and symbolically factorized Amesos2 solver. The user is responsible for ensuring
+        //! that the solver is used on a matrix that corresponds to the symbolic factorization.
+        void setExternalSolver(const Amesos2SolverTpetraPtr &amesos2Solver);
+
     protected:
+      //! Dummy constructor that only passes in the parameter list. The resulting solver will not be usable and is only
+      //! meant as a placeholder e.g. SimpleOverlappingOperator from the nonlinear Schwarz solver requires this as it
+      //! takes in a valid solver object before being applied.
+      Amesos2SolverTpetra(ParameterListPtr parameterList, string description);
 
         //! Constructor
         Amesos2SolverTpetra(ConstXMatrixPtr k,

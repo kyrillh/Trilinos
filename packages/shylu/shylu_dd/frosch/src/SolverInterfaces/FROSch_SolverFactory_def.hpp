@@ -49,7 +49,7 @@ namespace FROSch {
     template <class SC, class LO, class GO, class NO>
     typename SolverFactory<SC,LO,GO,NO>::SolverPtr SolverFactory<SC,LO,GO,NO>::Build(ConstXMatrixPtr k,
                                                                                      ParameterListPtr parameterList,
-                                                                                     string description)
+                                                                                     string description, const bool initSolver)
     {
         const string solverType = parameterList->get("SolverType","Amesos2");
         if (!solverType.compare("Amesos")) {
@@ -71,7 +71,12 @@ namespace FROSch {
                 ThrowErrorMissingPackage("FROSch::SolverFactory","Epetra");
 #endif
             } else if (k->getRowMap()->lib()==UseTpetra) {
-                return Amesos2SolverTpetraPtr(new Amesos2SolverTpetra<SC,LO,GO,NO>(k,parameterList,description));
+                if (initSolver) {
+                    return Amesos2SolverTpetraPtr(new Amesos2SolverTpetra<SC,LO,GO,NO>(k,parameterList,description));
+                } else {
+                    // Construct an empty solver object, required e.g. for SimpleOverlappingOperator in the nonlinear Schwarz solver
+                    return Amesos2SolverTpetraPtr(new Amesos2SolverTpetra<SC,LO,GO,NO>(parameterList,description));
+                }
             } else {
                 FROSCH_ASSERT(false, "FROSch::SolverFactory: This can't happen. Either use Epetra or Tetra linear algebra stack.");
             }

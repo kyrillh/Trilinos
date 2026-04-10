@@ -85,10 +85,18 @@ namespace FROSch {
 #endif
 
     public:
-
-        static SolverPtr Build(ConstXMatrixPtr k,
-                               ParameterListPtr parameterList,
-                               string description);
+      /**
+       * \brief Build a FROSch solver object. This wraps another Trilinos solver interface to an iterative or direct
+       * solver.
+       * \param k Matrix on which the solver is to be applied
+       * \param parameterList Parameter list for the solver
+       * \param description String describing features of the solver e.g. local subdomain solver on a certain level
+       * \param initSolver Whether or not the solver object should be initialized. Was introduced for the nonlinear
+       * Schwarz solver since there are use cases in which a dummy solver should be built as a placeholder for later
+       * replacement.
+       */
+      static SolverPtr Build(ConstXMatrixPtr k, ParameterListPtr parameterList, string description,
+                             const bool initSolver = true);
     };
 
 }

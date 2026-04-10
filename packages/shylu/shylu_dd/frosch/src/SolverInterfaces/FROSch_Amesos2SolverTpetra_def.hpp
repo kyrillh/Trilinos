@@ -98,6 +98,23 @@ namespace FROSch {
     }
 
     template<class SC,class LO,class GO,class NO>
+    void Amesos2SolverTpetra<SC,LO,GO,NO>::setExternalSolver(
+        const Amesos2SolverTpetraPtr &amesos2Solver)
+    {
+        FROSCH_ASSERT(!amesos2Solver.is_null(), "FROSch::Amesos2SolverTpetra: external solver is null.");
+        Amesos2Solver_ = amesos2Solver;
+        // Assume the solver has been symbolically factorized but not numerically factorized on the current matrix.
+        // Unfortunatelly this cannot be directly checked here since the solvers status_ variable is protected.
+        this->IsInitialized_ = true;
+        this->IsComputed_ = false;
+    }
+
+    template<class SC,class LO,class GO,class NO>
+    Amesos2SolverTpetra<SC,LO,GO,NO>::Amesos2SolverTpetra(ParameterListPtr parameterList,
+                                                          string description) :
+    Solver<SC,LO,GO,NO> (Teuchos::null,parameterList,description) {}
+
+    template<class SC,class LO,class GO,class NO>
     Amesos2SolverTpetra<SC,LO,GO,NO>::Amesos2SolverTpetra(ConstXMatrixPtr k,
                                                           ParameterListPtr parameterList,
                                                           string description) :

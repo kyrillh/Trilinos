@@ -309,6 +309,59 @@ void Amesos2LinearOpWithSolveFactory<Scalar>::uninitializeOp(
   if(approxFwdOpSrc) *approxFwdOpSrc = Teuchos::null; // never keep approx fwd op!
 }
 
+template<typename Scalar>
+void Amesos2LinearOpWithSolveFactory<Scalar>::initializeAndReuseOp(
+  const RCP<const LinearOpSourceBase<Scalar> > &fwdOpSrc,
+  LinearOpWithSolveBase<Scalar> *Op
+  ) const
+{
+  THYRA_FUNC_TIME_MONITOR("Stratimikos: Amesos2LOWSF:ReuseOp");
+
+  TEUCHOS_TEST_FOR_EXCEPT(Op==NULL);
+  TEUCHOS_TEST_FOR_EXCEPT(fwdOpSrc.get()==NULL);
+  TEUCHOS_TEST_FOR_EXCEPT(fwdOpSrc->getOp().get()==NULL);
+
+  // Extract the concrete forward operator from the source wrapper.
+  RCP<const LinearOpBase<Scalar> > fwdOp = fwdOpSrc->getOp();
+  // Convert Thyra operator to the underlying Tpetra operator expected by Amesos2.
+  auto tpetraFwdOp = ConverterT::getConstTpetraOperator(fwdOp);
+  // Downcast to the concrete Tpetra::CrsMatrix type used by this solver adapter.
+  auto tpetraCrsMat = Teuchos::rcp_dynamic_cast<const MAT>(tpetraFwdOp);
+
+  // Access the concrete Amesos2-backed LOWS (Linear Op With Solve) object from the generic interface.
+  Amesos2LinearOpWithSolve<Scalar>
+    *amesos2Op = &Teuchos::dyn_cast<Amesos2LinearOpWithSolve<Scalar>>(*Op);
+
+  // Retrieve any previously-created Amesos2 solver instance stored in the LOWS object.
+  auto amesos2Solver = amesos2Op->get_amesos2Solver();
+
+  // If no solver exists yet, fall back to full initialization
+  if (amesos2Solver == Teuchos::null) {
+    // Delegate to the standard path, which constructs the solver and performs full setup.
+    this->initializeOp(fwdOpSrc, Op, SUPPORT_SOLVE_UNSPECIFIED);
+    // Stop here because the fallback path has fully initialized the operator.
+    return;
+  }
+
+  // Replace the matrix in the existing Amesos2 solver while keeping symbolic state.
+  amesos2Solver->setA(tpetraCrsMat, ::Amesos2::SYMBFACT);
+
+  // Only redo numeric factorization because symbolic data is being reused.
+  {
+    // Time the numeric refactorization stage for profiling.
+    THYRA_FUNC_TIME_MONITOR_DIFF("Stratimikos: Amesos2LOWSF::Factor", Factor);
+    // Recompute numeric factors for the new matrix values.
+    amesos2Solver->numericFactorization();
+  }
+
+  // Refresh the LOWS wrapper with the current operator source and solver handle.
+  amesos2Op->initialize(fwdOp, fwdOpSrc, amesos2Solver);
+  // Propagate this factory's output stream into the concrete LOWS object.
+  amesos2Op->setOStream(this->getOStream());
+  // Propagate this factory's verbosity level into the concrete LOWS object.
+  amesos2Op->setVerbLevel(this->getVerbLevel());
+}
+
 // Overridden from ParameterListAcceptor
 
 template<typename Scalar>
