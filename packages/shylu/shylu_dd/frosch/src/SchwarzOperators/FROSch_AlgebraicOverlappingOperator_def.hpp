@@ -265,14 +265,19 @@ namespace FROSch {
     {
         FROSCH_DETAILTIMER_START_LEVELID(updateLocalOverlappingMatricesTime,"AlgebraicOverlappingOperator::updateLocalOverlappingMatrices");
         if (this->ExtractLocalSubdomainMatrix_Symbolic_Done_) {
-            // using original K_ as input
+            // Fast path with symbolic reuse:
+            // 1) import current K_ values into subdomainMatrix_ (overlap-distributed, global IDs)
+            // 2) inject values into localSubdomainMatrix_ (serial local IDs, fixed sparsity)
             ExtractLocalSubdomainMatrix_Compute(this->subdomainScatter_, this->K_, this->subdomainMatrix_, this->localSubdomainMatrix_);
+            // Expose the local extracted matrix as the active overlap matrix for the solver path.
             this->OverlappingMatrix_ = this->localSubdomainMatrix_.getConst();
         } else {
             if (this->IsComputed_) {
                 // already computed once and we want to recycle the information. That is why we reset OverlappingMatrix_ to K_, because K_ has been reset at this point
                 this->OverlappingMatrix_ = this->K_;
             }
+            // One-shot path: build local extracted overlap matrix directly.
+            // This bypasses subdomainMatrix_/localSubdomainMatrix_/subdomainScatter_.
             this->OverlappingMatrix_ = ExtractLocalSubdomainMatrix(this->OverlappingMatrix_, this->OverlappingMap_);
         }
         return 0;
@@ -292,20 +297,20 @@ namespace FROSch {
     {
         if (this->OverlappingMap_->lib() == UseTpetra) {
             FROSCH_DETAILTIMER_START_LEVELID(AlgebraicOverlappin_extractLocalSubdomainMatrix_SymbolicTime,"AlgebraicOverlappinOperator::extractLocalSubdomainMatrix_Symbolic");
-            // buid sudomain matrix
+            // Build overlap-distributed subdomainMatrix_ (global IDs on OverlappingMap_).
             this->subdomainMatrix_ = MatrixFactory<SC,LO,GO,NO>::Build(this->OverlappingMap_, this->OverlappingMatrix_->getGlobalMaxNumRowEntries());
             RCP<Import<LO,GO,NO> > scatter = ImportFactory<LO,GO,NO>::Build(this->OverlappingMatrix_->getRowMap(), this->OverlappingMap_);
             this->subdomainMatrix_->doImport(*(this->OverlappingMatrix_), *scatter, ADD);
 
-            // Used to Map original K_ to overlapping suubdomainMatrix
+            // Reusable importer from global K_ row map to overlap-distributed subdomainMatrix_.
             this->subdomainScatter_ = ImportFactory<LO,GO,NO>::Build(this->K_->getRowMap(), this->OverlappingMap_);
 
-            // build local subdomain matrix
+            // Build serial localSubdomainMatrix_ (local IDs) that mirrors subdomainMatrix_ sparsity.
             RCP<const Comm<LO> > SerialComm = rcp(new MpiComm<LO>(MPI_COMM_SELF));
             RCP<Map<LO,GO,NO> > localSubdomainMap = MapFactory<LO,GO,NO>::Build(this->OverlappingMap_->lib(), this->OverlappingMap_->getLocalNumElements(), 0, SerialComm);
             this->localSubdomainMatrix_ = MatrixFactory<SC,LO,GO,NO>::Build(localSubdomainMap, localSubdomainMap, this->OverlappingMatrix_->getGlobalMaxNumRowEntries());
 
-            // fill in column indexes
+            // Fill only the localSubdomainMatrix_ structure (symbolic phase, zero values).
             ExtractLocalSubdomainMatrix_Symbolic(this->subdomainMatrix_, // input
                                                  this->localSubdomainMatrix_);   // output
 

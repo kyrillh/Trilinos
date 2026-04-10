@@ -81,6 +81,9 @@ namespace FROSch {
         virtual int updateLocalOverlappingMatrices() = 0;
 
 
+        // Active matrix handle used by the overlapping operator/subdomain solver path.
+        // During setup it may point to K_ (for overlap growth), and after extraction it
+        // points to the local extracted overlap matrix used for local solves.
         ConstXMatrixPtr OverlappingMatrix_;
 
         ConstXMapPtr OverlappingMap_;

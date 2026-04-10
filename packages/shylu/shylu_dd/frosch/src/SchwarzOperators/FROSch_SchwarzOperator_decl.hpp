@@ -200,10 +200,19 @@ namespace FROSch {
 
         ParameterListPtr ParameterList_;
 
-        // result of ExtractLocalSubdomainMatrix_Symbolic
+        // Set to true once the split symbolic step has built localSubdomainMatrix_ sparsity.
         bool ExtractLocalSubdomainMatrix_Symbolic_Done_ = false;
+        // Overlap-distributed staging matrix on OverlappingMap_ (global IDs).
+        // Filled by importing K_ onto the overlap; used only in the split symbolic/numeric
+        // extraction workflow as source for localSubdomainMatrix_ updates.
         XMatrixPtr subdomainMatrix_;
+        // Per-rank serial local subdomain matrix (MPI_COMM_SELF, local IDs 0..n-1).
+        // Used only in the split symbolic/numeric extraction workflow; bypassed when
+        // OverlappingMatrix_ is built directly via one-shot ExtractLocalSubdomainMatrix().
         XMatrixPtr localSubdomainMatrix_;
+        // Import from global K_ row map to overlap-distributed subdomainMatrix_ row map.
+        // Used only in the split symbolic/numeric extraction workflow to update values
+        // without rebuilding localSubdomainMatrix_ sparsity.
         XImportPtr subdomainScatter_;
 
         bool Verbose_ = false;

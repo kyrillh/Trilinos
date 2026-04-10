@@ -271,7 +271,7 @@ namespace FROSch {
     {
         FROSCH_DETAILTIMER_START_LEVELID(computeOverlappingOperatorTime,"OverlappingOperator::computeOverlappingOperator");
 
-        // kho values are filled into the sparsity pattern here
+        // Values are filled into the sparsity pattern here
         updateLocalOverlappingMatrices();
         bool reuseSymbolicFactorization = this->ParameterList_->get("Reuse: Symbolic Factorization",true);
         if (!reuseSymbolicFactorization || SubdomainSolver_.is_null()) {
@@ -282,7 +282,8 @@ namespace FROSch {
         } else if (this->IsComputed_) {
             // if !IsComputed, then this is the first timing calling "compute" after initializeSubdomainSolver is called in symbolic phase
             // so no need to do anything
-            // kho I think OverlappingMatrix_ is the same as localSubdomainMatrix but with an mpi communicator
+            // In AlgebraicOverlappingOperator, OverlappingMatrix_ is updated to the current
+            // extracted local overlap matrix used for numeric updates.
             SubdomainSolver_->updateMatrix(this->OverlappingMatrix_,true);
         }
         this->IsComputed_ = true;
