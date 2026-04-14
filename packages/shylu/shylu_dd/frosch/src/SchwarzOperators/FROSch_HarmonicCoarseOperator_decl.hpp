@@ -288,6 +288,8 @@ namespace FROSch {
 
         virtual void extractLocalSubdomainMatrix_Symbolic();
 
+        void deleteCoarseSpaceSolver() override;
+
         SolverPtr ExtensionSolver_;
 
         CoarseSpacePtrVecPtr InterfaceCoarseSpaces_ = CoarseSpacePtrVecPtr(0);

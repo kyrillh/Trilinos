@@ -1188,6 +1188,11 @@ namespace FROSch {
             ExtensionSolver_->initialize();
         }
     }
+
+    template<class SC, class LO, class GO, class NO>
+    void HarmonicCoarseOperator<SC, LO, GO, NO>::deleteCoarseSpaceSolver() {
+        ExtensionSolver_ = Teuchos::null;
+    }
     
 }
 

@@ -157,6 +157,8 @@ namespace FROSch {
 
         virtual void extractLocalSubdomainMatrix_Symbolic() = 0;
 
+        virtual void deleteCoarseSpaceSolver(){}
+
         CommPtr CoarseSolveComm_;
 
         bool OnCoarseSolveComm_ = false;

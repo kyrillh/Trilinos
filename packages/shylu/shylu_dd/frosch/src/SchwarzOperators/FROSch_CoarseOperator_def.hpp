@@ -45,15 +45,14 @@ namespace FROSch {
 
         bool reuseCoarseBasis = this->ParameterList_->get("Reuse: Coarse Basis",true);
         bool reuseCoarseMatrix = this->ParameterList_->get("Reuse: Coarse Matrix",false);
-        if (!this->IsComputed_) {
-            reuseCoarseBasis = false;
-            reuseCoarseMatrix = false;
-        }
 
-        if (!reuseCoarseBasis) {
+        if (!reuseCoarseBasis || !this->IsComputed_) {
             if (this->IsComputed_ && this->Verbose_) cout << "FROSch::CoarseOperator : Recomputing the Coarse Basis" << endl;
             clearCoarseSpace(); // AH 12/11/2018: If we do not clear the coarse space, we will always append just append the coarse space
             ConstXMapPtr subdomainMap = this->computeCoarseSpace(CoarseSpace_); // AH 12/11/2018: This map could be overlapping, repeated, or unique. This depends on the specific coarse operator
+            if (reuseCoarseBasis) {
+                this->deleteCoarseSpaceSolver();
+            }
             if (CoarseSpace_->hasUnassembledMaps()) { // If there is no unassembled basis, the current Phi_ should already be correct
                 CoarseSpace_->assembleCoarseSpace();
                 FROSCH_ASSERT(CoarseSpace_->hasAssembledBasis(),"FROSch::CoarseOperator : !CoarseSpace_->hasAssembledBasis()");
@@ -62,7 +61,7 @@ namespace FROSch {
                 Phi_ = CoarseSpace_->getGlobalBasisMatrix();
             }
         }
-        if (!reuseCoarseMatrix) {
+        if (!reuseCoarseMatrix || !this->IsComputed_) {
             if (this->IsComputed_ && this->Verbose_) cout << "FROSch::CoarseOperator : Recomputing the Coarse Matrix" << endl;
             this->setUpCoarseOperator();
         }
