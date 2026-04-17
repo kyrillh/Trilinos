@@ -87,8 +87,13 @@ namespace FROSch {
         this->updateLocalOverlappingMatrices_Symbolic();
         bool reuseSymbolicFactorization = this->ParameterList_->get("Reuse: Symbolic Factorization",true);
         if (this->ExtractLocalSubdomainMatrix_Symbolic_Done_ && reuseSymbolicFactorization) {
-            // if reuseSymbolicFactorization=false, we call initializeSubdomainSolver is called during compute
-            this->initializeSubdomainSolver(this->localSubdomainMatrix_);// Symbolic factorization done here
+            // For PARDISOMKL, defer solver initialization to compute() so that weighted
+            // matching uses real matrix values instead of placeholders.
+            ParameterListPtr solverList = sublist(this->ParameterList_, "Solver");
+            std::string solverName = solverList->get("Solver", "Klu");
+            if (solverName != "PARDISOMKL") {
+                this->initializeSubdomainSolver(this->localSubdomainMatrix_);
+            }
         }
 
         this->IsInitialized_ = true;
