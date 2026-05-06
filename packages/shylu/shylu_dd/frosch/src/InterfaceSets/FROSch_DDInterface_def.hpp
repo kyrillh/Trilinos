@@ -749,6 +749,9 @@ namespace FROSch {
         }
 
         // Find roots i.e. ancestors that don't have ancestors themselves
+        // NOTE: [KH] In the boundary framework, boundary entities might not have any roots in their ancestors e.g.
+        // RGDSW root lies inside the global domain. Nevertheless Roots_ stores these internal entities to indiciate to
+        // which coarse basis function the boundary entity belongs.
         for (UN i=0; i<EntitySetVector_.size(); i++) {
             EntitySetPtr tmpRoots = EntitySetVector_[i]->findRoots();
             Roots_->addEntitySet(tmpRoots);

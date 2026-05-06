@@ -222,9 +222,12 @@ namespace FROSch {
         /**
          * Build hierarchical relationships between interface entities.
          * This function establishes parent-child relationships between entities
-         * of different dimensions (e.g., faces contain edges, edges contain vertices).
+         * of different dimensions (e.g., faces contain edges and vertices, edges contain vertices).
          * It also identifies root entities (highest level) and leaf entities
          * (lowest level) in the hierarchy.
+         * Note that the ancestors of a an entity are all entities that are part of the same subdomains but with a
+         * higher multiplicity. e.g. the ancestors of an internal square face are the four edges and four vertices
+         * surrounding it, not just the four edges. The ancestors of the four edges will be the four vertices.
          * @return 0 on success
          */
         int buildEntityHierarchy();
