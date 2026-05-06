@@ -478,7 +478,8 @@ namespace FROSch {
         // multivector for each root since in the InterfacePartitionOfUnity classes an entry is built for each root.
         DistancesVector_.resize(getNumNodes());
         for (UN i = 0; i < getNumNodes(); i++) {
-            DistancesVector_[i].resize(Roots_->getNumEntities() + 1, numeric_limits<SC>::max());
+            DistancesVector_[i].resize(Roots_->getNumEntities() + 1);
+            std::fill(DistancesVector_[i].begin(), DistancesVector_[i].end(), numeric_limits<SC>::max());
         }
 
         // If this is a Dirichlet entity, the distance calculated in RGDSWInterfacePartitionOfUnity should be zero. We
@@ -512,15 +513,21 @@ namespace FROSch {
                 }
 
                 // Each entry in Roots_ corresponds to a coarse basis function. Since every one will contribute to the
-                // value on the do nothing entity, divide by the number of roots to get one in total.
-                for (UN i = 0; i < NodeVector_.size(); i++) {
-                    for (UN j = 0; j < Roots_->getNumEntities(); j++) {
-                        DistancesVector_[i][j] = ScalarTraits<SC>::one() / Roots_->getNumEntities();
+                // value on the do nothing entity, divide by the number of roots to get one in total. If there are no
+                // roots, leave DistancesVector_ as is (numeric_limits<SC>::max()) - the RGDSW PoU loop will skip
+                // this entity since numRoots == 0.
+                if (Roots_->getNumEntities() > 0) {
+                    const SC invNumRoots = ScalarTraits<SC>::one() / static_cast<SC>(Roots_->getNumEntities());
+                    for (UN i = 0; i < NodeVector_.size(); i++) {
+                        for (UN j = 0; j < Roots_->getNumEntities(); j++) {
+                            DistancesVector_[i][j] = invNumRoots;
+                        }
+                        // Note that the last entry in DistancesVector_[i] usually contains the sum of all the
+                        // distances between node i and all the roots. Setting this value to one, ensures that
+                        // 1/1 = 1 results from the inverse Euclidean calculation in the
+                        // RGDSWInterfacePartitionOfUnity
+                        DistancesVector_[i][Roots_->getNumEntities()] = ScalarTraits<SC>::one();
                     }
-                    // Note that the last entry in DistancesVector_[i] usually contains the sum of all the distances
-                    // between node i and all the roots. Setting this value to one, ensures that 1/1 = 1 results from
-                    // the inverse Euclidean calculation in the RGDSWInterfacePartitionOfUnity
-                    DistancesVector_[i][Roots_->getNumEntities()] = ScalarTraits<SC>::one();
                 }
             } else {
                 // In this case there is exactly one Dirichlet and one interface entity higher up the hierarchy as
@@ -615,6 +622,10 @@ namespace FROSch {
 
                 // Convert the distance to an inverse distance
                 for (UN i = 0; i < NodeVector_.size(); i++) {
+
+                    FROSCH_ASSERT(dirichletDistance[i] > 10 * numeric_limits<SC>::min(),
+                                  "FROSch::InterfaceEntity: Dirichlet entities should never overlap with other "
+                                  "boundary entities.")
                     dirichletDistance[i] = ScalarTraits<SC>::one() / dirichletDistance[i];
                     // neighborDistance might be zero since boundary entities are constructed to overlap with their
                     // neighbors
@@ -700,7 +711,8 @@ namespace FROSch {
                 DistancesVector_.resize(getNumNodes());
                 for (UN i = 0; i < getNumNodes(); i++) {
                     // Init. the distance to basically inf. We need one set of distances for every root.
-                    DistancesVector_[i].resize(Roots_->getNumEntities()+1,numeric_limits<SC>::max());
+                    DistancesVector_[i].resize(Roots_->getNumEntities()+1);
+                    std::fill(DistancesVector_[i].begin(), DistancesVector_[i].end(), numeric_limits<SC>::max());
                 }
                 auto distancesVectorDirichlet = SCVecPtr(getNumNodes(), numeric_limits<SC>::max());
 
@@ -750,7 +762,9 @@ namespace FROSch {
                 }
 
                 for (UN i = 0; i < getNumNodes(); i++) {
-                    for (UN j=0; j<Roots_->getNumEntities(); j++) {
+                    for (UN j = 0; j < Roots_->getNumEntities(); j++) {
+                        FROSCH_ASSERT(DistancesVector_[i][j] > 10 * numeric_limits<SC>::min(),
+                                  "FROSch::InterfaceEntity: Interface entities should never overlap with their roots.")
                         DistancesVector_[i][j] = ScalarTraits<SC>::one() / DistancesVector_[i][j];
                     }
                     // Handle possible division by zero because Dirichlet entities share nodes with "real" interface

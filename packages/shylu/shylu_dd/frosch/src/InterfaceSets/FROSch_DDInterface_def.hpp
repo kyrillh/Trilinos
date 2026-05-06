@@ -249,8 +249,11 @@ namespace FROSch {
             auto boundaryNodesIt = boundaryNodes.begin();
             // removeNode() uses binary search on the globalID so requires the nodes to be sorted by globalID
             Interior_->getEntity(0)->sortByGlobalID();
-            // boundary nodes should all be in the interface at this point
-            for (int i = 0; i < interface->getNumNodes(); i++) {
+            // interface needs to be globally sorted because of how we step through it below 
+            interface->sortByGlobalID();
+            // boundary nodes should all be in the interface at this point. Note the && boundaryNodesIt guard:
+            // once every boundary node has been matched, dereferencing boundaryNodesIt is undefined.
+            for (int i = 0; i < interface->getNumNodes() && boundaryNodesIt != boundaryNodes.end(); i++) {
                 // Only need to deal with nodes actually in the boundary
                 if (*boundaryNodesIt == interface->getGlobalNodeID(i)) {
                     tmpEntity->addNode(interface->getNode(i));
@@ -259,6 +262,8 @@ namespace FROSch {
                     boundaryNodesIt++;
                 }
             }
+            // Restore local-ID order on interface.
+            interface->sortUniqueByLocalID();
 
             // Interior_ Gamma IDs need updating since nodes were removed.
             Interior_->getEntity(0)->reindexGammaID();

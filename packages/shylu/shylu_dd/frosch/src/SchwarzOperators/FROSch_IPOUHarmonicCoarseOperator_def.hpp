@@ -339,11 +339,18 @@ namespace FROSch {
                 // DofsMaps_ is a 2D vector. For every block it contains #dofs maps i.e. one map for each dof, but with global dof entries instead of node entries.
                 // Get the largest global dof index from the previous block for the offset.
                 for (int i = 0; i < this->DofsPerNode_[blockId - 1]; i++) {
-                    dofOffset = std::max(dofOffset, this->DofsMaps_[blockId - 1][this->DofsPerNode_[blockId - 1]- 1]->getMaxAllGlobalIndex());
+                    dofOffset = std::max(dofOffset, this->DofsMaps_[blockId - 1][i]->getMaxAllGlobalIndex());
                 }
                 // Compensate for zero-based indexing
                 dofOffset += 1;
             }
+            // The boundary framework is inconsistent when a CustomBC entity is added but Dirichlet nodes are removed
+            // afterwards: the Dirichlet entity is destroyed by removeDirichletNodes while the CustomBC entity
+            // survives. This shouldn't happen so we guard against it here.
+            FROSCH_ASSERT(!this->ParameterList_->get("Remove Dirichlet Nodes", true) || customBCDofs.size() == 0,
+                          "FROSch::IPOUHarmonicCoarseOperator: combining 'Remove Dirichlet Nodes=true' with non-empty "
+                          "customBCDofs is not supported. Set 'Remove Dirichlet Nodes' to false to use the boundary "
+                          "framework with a custom boundary.");
             // There is no point in adding boundary nodes to the interface if it is empty
             if (interfacePartitionOfUnity->getDDInterface()->getInterface()->getEntity(0)->getNumNodes() > 0) {
                 // These add a single boundary entity and rely on sortInterface to split it into connected entities
