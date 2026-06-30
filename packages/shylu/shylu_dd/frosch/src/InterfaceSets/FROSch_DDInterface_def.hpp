@@ -255,12 +255,81 @@ namespace FROSch {
             // once every boundary node has been matched, dereferencing boundaryNodesIt is undefined.
             for (int i = 0; i < interface->getNumNodes() && boundaryNodesIt != boundaryNodes.end(); i++) {
                 // Only need to deal with nodes actually in the boundary
+                // The boundary nodes were added to the interface above.
+                // That's why at this stage they are in the interface and in the interior.
                 if (*boundaryNodesIt == interface->getGlobalNodeID(i)) {
                     tmpEntity->addNode(interface->getNode(i));
                     // If node is not in the entity, removeNode does nothing and returns -1.
                     Interior_->getEntity(0)->removeNode(interface->getNode(i));
                     boundaryNodesIt++;
                 }
+            }
+
+            // Check vectors are sorted for subset operations below
+            for (int i = 2; i < EntitySetVector_.size(); i++) {
+                for (int j = 0; j < EntitySetVector_[i]->getNumEntities(); j++) {
+                    auto tmpEntityNodesVec = EntitySetVector_[i]->getEntity(j)->getConstNodeVectorRef();
+                    FROSCH_ASSERT(std::is_sorted(tmpEntityNodesVec.begin(), tmpEntityNodesVec.end()),
+                                  "FROSch::DDInterface: std::includes requires sorted vectors.")
+                    FROSCH_ASSERT(std::is_sorted(boundaryNodes.begin(), boundaryNodes.end()),
+                                  "FROSch::DDInterface: std::includes requires sorted vectors.")
+                }
+            }
+            // Now check whether there are any entities in equivalence classes higher than 1, that lie completely in the
+            // Dirichlet boundary. E.g. in 2D backward-facing step a regular decomposition will result in an interface
+            // vertex at the corner of the step because it belongs to three subdomains.
+            // If such an entity is found, move it to the equivalence class 1, together with all of the other boundary
+            // entities.
+            auto& boundaryEntityVector = EntitySetVector_[1]->getEntityVector();
+            for (int i = 2; i < EntitySetVector_.size(); i++) {
+                // Get the entities in the current set.
+                auto& tmpEntityVector = EntitySetVector_[i]->getEntityVector();
+                // If an entity lies comletely in the Dirichlet boundary, it's moved to the equivalence class 1.
+                // Stable partition moves all entries to the back that fail the test, maintaing relative order.
+                // std::includes returns true if first set is a superset of the second set.
+                auto new_end = std::stable_partition(
+                    tmpEntityVector.begin(), tmpEntityVector.end(),
+                    [&](Teuchos::RCP<InterfaceEntity<SC, LO, GO, NO>> entity) {
+                        std::vector<GO> nodeVec(entity->getConstNodeVectorRef().length());
+                        for (int j = 0; j < entity->getConstNodeVectorRef().length(); j++) {
+                            nodeVec[j] = entity->getConstNodeVectorRef()[j].NodeIDGlobal_;
+                        }
+                        FROSCH_ASSERT(std::is_sorted(nodeVec.begin(), nodeVec.end()), "nodeVec must be sorted!");
+                        auto result = !std::includes(boundaryNodes.begin(), boundaryNodes.end(), nodeVec.begin(), nodeVec.end());
+                        return result;
+                    });
+
+                // Add the nodes of the entities being moved back into the connected entities highest up the entity hierarchy.
+                // This is so that "real" interface entities overlap with boundary entities for later calculations.
+                // The entities in question should be part of a subset of the subdomains that the boundary entity is.
+                // If the subdomain sets only intersect, then it could be any other entity in the current subdomain, and
+                // if the subdomain sets are equal, the current entity would not have been split off.
+                for (auto it = new_end; it != tmpEntityVector.end(); it++) {
+                    // We need to the change the type of the entities that we move.
+                    (*it)->resetEntityFlag(type);
+                    (*it)->resetEntityType(BoundaryType);
+                    FROSCH_ASSERT((*it)->getSubdomainsVector().size() == i, "FROSCH::DDInterface: An entity was found in the wrong equivalence class");
+                    // Start searching in entities with a lower multiplicity
+                    for (int j = i - 1; j > 1; j--) {
+                        for (int k = 0; k < EntitySetVector_[j]->getNumEntities(); k++) {
+                            const auto &tmpSubdomainsVec = EntitySetVector_[j]->getEntity(k)->getSubdomainsVector();
+                            // Check if the entities subdomain set is a subset of the entity being moved.
+                            if (std::includes((*it)->getSubdomainsVector().begin(), (*it)->getSubdomainsVector().end(),
+                                              tmpSubdomainsVec.begin(), tmpSubdomainsVec.end())) {
+                                // Add the nodes of the entity being moved to the entity that passed the test.
+                                for (int l = 0; l < (*it)->getNumNodes(); l++) {
+                                    EntitySetVector_[j]->getEntity(k)->addNode((*it)->getNode(l));
+                                }
+                            }
+                            // TODO:[KH] we might want to break; here to stop the nodes from being added to entities
+                            // further down the hierarchy e.g. if they were already added to an edge, don't also add
+                            // them to a face.
+                        }
+                    }
+                }
+                std::move(new_end, tmpEntityVector.end(), std::back_inserter(boundaryEntityVector));
+                tmpEntityVector.resize(new_end - tmpEntityVector.begin(),
+                                       Teuchos::RCP<InterfaceEntity<SC, LO, GO, NO>>{});
             }
             // Restore local-ID order on interface.
             interface->sortUniqueByLocalID();
@@ -1106,8 +1175,10 @@ namespace FROSch {
         // classes and creates the appropriate interface entities.
 
         // STEP 1: Analyze equivalence classes and determine multiplicity
-        // componentsSubdomainsUnique contains unique combinations of subdomain IDs (equivalence classes)
-        // Each equivalence class represents nodes that belong to the same set of subdomains
+        // componentsSubdomainsUnique contains unique combinations of subdomain IDs (equivalence classes). This is in
+        // contrast to componentsSubdomains which contains one entry per node in the subdomain. Each entry is a vector
+        // containing the subdomains the node is part of. By removing duplicates componentsSubdomainsUnique is built,
+        // exactly the equivalence classes in the subdomain.
         UNVecPtr componentsMultiplicity(componentsSubdomainsUnique.size());
         IntVecVecPtr components(componentsSubdomainsUnique.size());        // Local node indices for each equivalence class
         IntVecVecPtr componentsGamma(componentsSubdomainsUnique.size());    // Interface node indices for each equivalence class

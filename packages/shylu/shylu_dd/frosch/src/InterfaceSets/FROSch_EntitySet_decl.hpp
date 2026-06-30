@@ -140,6 +140,8 @@ namespace FROSch {
 
         UN getNumEntities() const;
 
+        InterfaceEntityPtrVec & getEntityVector();
+
         const InterfaceEntityPtrVec & getEntityVector() const;
 
         const InterfaceEntityPtr getEntity(UN iD) const;

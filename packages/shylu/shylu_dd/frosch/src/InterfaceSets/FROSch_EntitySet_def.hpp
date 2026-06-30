@@ -10,6 +10,7 @@
 #ifndef _FROSCH_ENTITYSET_DEF_HPP
 #define _FROSCH_ENTITYSET_DEF_HPP
 
+#include "FROSch_InterfaceEntity_decl.hpp"
 #include <FROSch_EntitySet_decl.hpp>
 #include <FROSch_InterfaceEntity_def.hpp>
 #include <FROSch_Tools_def.hpp>
@@ -540,6 +541,12 @@ namespace FROSch {
     typename EntitySet<SC,LO,GO,NO>::UN EntitySet<SC,LO,GO,NO>::getNumEntities() const
     {
         return EntityVector_.size();
+    }
+
+    template<class SC,class LO,class GO,class NO>
+    typename EntitySet<SC,LO,GO,NO>::InterfaceEntityPtrVec & EntitySet<SC,LO,GO,NO>::getEntityVector()
+    {
+        return EntityVector_;
     }
 
     template<class SC,class LO,class GO,class NO>

@@ -259,14 +259,19 @@ namespace FROSch {
     {
         EntitySetPtr ancestors(new EntitySet<SC,LO,GO,NO>(*entitySet));
         IntVec tmpVector;
-        // Remove all entities that are not an ancestor, either because they have a lower or equal multiplicity (just being sure),
-        // or because they are not part of all the same subdomains (the "normal" case). An ancestor should belong to a superset of subdomains.
-        for (UN i=0; i<Multiplicity_; i++) {
-            UN length = ancestors->getNumEntities();
-            for (UN j=0; j<length; j++) {
-                tmpVector = ancestors->getEntity(length-1-j)->getSubdomainsVector();
-                if (ancestors->getEntity(length-1-j)->getMultiplicity()<=this->getMultiplicity() || !binary_search(tmpVector.begin(),tmpVector.end(),SubdomainsVector_[i])) {
-                    ancestors->removeEntity(length-1-j);
+        // Boundary entities don't have offspring. Their ancestors are all of the entities in the same subdomain.
+        if (Type_ != BoundaryType) {
+            // Remove all entities that are not an ancestor, either because they have a lower or equal multiplicity
+            // (just being sure), or because they are not part of all the same subdomains (the "normal" case). An
+            // ancestor should belong to a superset of subdomains.
+            for (UN i = 0; i < Multiplicity_; i++) {
+                UN length = ancestors->getNumEntities();
+                for (UN j = 0; j < length; j++) {
+                    tmpVector = ancestors->getEntity(length - 1 - j)->getSubdomainsVector();
+                    if (ancestors->getEntity(length - 1 - j)->getMultiplicity() <= this->getMultiplicity() ||
+                        !binary_search(tmpVector.begin(), tmpVector.end(), SubdomainsVector_[i])) {
+                        ancestors->removeEntity(length - 1 - j);
+                    }
                 }
             }
         }
