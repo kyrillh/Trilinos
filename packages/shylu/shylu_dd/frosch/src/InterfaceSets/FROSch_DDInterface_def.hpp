@@ -186,6 +186,12 @@ namespace FROSch {
             }
             sortunique(boundaryNodes);
 
+            //TODO:[KH] can we get rid of this? 
+            Teuchos::Array<GO> boundaryNodesIDsLocal(numBoundaryNodes);
+            FROSCH_ASSERT(
+                boundaryNodes.length() == boundaryNodesIDsLocal.length(),
+                "FROSch::DDInterface: boundaryNodes and boundaryNodesLocalIDs arrays should have the same length")
+
             // Add boundary nodes to interface
             for (LO i = 0; i < boundaryNodes.size(); i++) {
                 // *The interface/interior ID does not matter at this point. The subdomain solver assumes that both ID
@@ -211,27 +217,11 @@ namespace FROSch {
                                                     " does not lie in subdomain " +
                                                     std::to_string(this->MpiComm_->getRank()))
                 interface->addNode(nodeIDBndry, nodeIDLocal, nodeIDGlobal, DofsPerNode_, dofsI, dofsLocal, dofsGlobal);
+                boundaryNodesIDsLocal[i] = nodeIDLocal;
             }
             // reindex GammaID so that GammaID and local ID are ordered in the same way. See comment*
             interface->sortUniqueByLocalID();
             interface->reindexGammaID();
-
-            // propagate the new gammaIDs to the Entities in EntitySetVector_. These would otherwise no longer be up to date.
-            auto interfaceNodes = interface->getConstNodeVectorRef();
-            for (int i = 0; i < EntitySetVector_.size(); i++) {
-                for (int j = 0; j < EntitySetVector_[i]->getNumEntities(); j++) {
-                    for (int k = 0; k < EntitySetVector_[i]->getEntity(j)->getNumNodes(); k++) {
-                        // Find the current node in interface using binary search. This is probably more efficient
-                        // than building a hashed map std::unordered_map since we are finding e.g. 2400 elements for
-                        // subdomains with 640000 in 3D.
-                        auto interfaceNodeIt = std::lower_bound(
-                            interfaceNodes.begin(), interfaceNodes.end(), EntitySetVector_[i]->getEntity(j)->getNode(k),
-                            [](const auto &a, const auto &b) { return a.NodeIDLocal_ < b.NodeIDLocal_; });
-                        EntitySetVector_[i]->getEntity(j)->setGammaIDs(
-                            k, interface->getGammaNodeID(std::distance(interfaceNodes.begin(), interfaceNodeIt)));
-                    }
-                }
-            }
 
             // Create an entity just for the boundary nodes
             constexpr UN multiplicity = 1;
@@ -264,6 +254,7 @@ namespace FROSch {
                     boundaryNodesIt++;
                 }
             }
+
 
             // Check vectors are sorted for subset operations below
             for (int i = 2; i < EntitySetVector_.size(); i++) {
@@ -299,45 +290,48 @@ namespace FROSch {
                         return result;
                     });
 
-                // Add the nodes of the entities being moved back into the connected entities highest up the entity hierarchy.
-                // This is so that "real" interface entities overlap with boundary entities for later calculations.
-                // The entities in question should be part of a subset of the subdomains that the boundary entity is part of.
-                // If the subdomain sets only intersect, then it could be any other entity in the current subdomain, and
-                // if the subdomain sets are equal, the current entity would not have been split off.
                 for (auto it = new_end; it != tmpEntityVector.end(); it++) {
-                    // We need to the change the type of the entities that we move.
+                    // We need to change the type of the entities that we move.
                     (*it)->resetEntityFlag(type);
                     (*it)->resetEntityType(BoundaryType);
                     FROSCH_ASSERT((*it)->getSubdomainsVector().size() == i, "FROSCH::DDInterface: An entity was found in the wrong equivalence class")
-                    // Start searching in entities with a lower multiplicity
-                    for (int j = i - 1; j > 1; j--) {
-                        for (int k = 0; k < EntitySetVector_[j]->getNumEntities(); k++) {
-                            const auto &tmpSubdomainsVec = EntitySetVector_[j]->getEntity(k)->getSubdomainsVector();
-                            // Check if the entities subdomain set is a subset of the entity being moved.
-                            if (std::includes((*it)->getSubdomainsVector().begin(), (*it)->getSubdomainsVector().end(),
-                                              tmpSubdomainsVec.begin(), tmpSubdomainsVec.end())) {
-                                // Add the nodes of the entity being moved to the entity that passed the test.
-                                for (int l = 0; l < (*it)->getNumNodes(); l++) {
-                                    EntitySetVector_[j]->getEntity(k)->addNode((*it)->getNode(l));
-                                }
-                            }
-                            // TODO:[KH] we might want to break; here to stop the nodes from being added to entities
-                            // further down the hierarchy e.g. if they were already added to an edge, don't also add
-                            // them to a face.
-                        }
-                    }
-                    // Finally, we need to also remove these nodes from the boundary entity just built from the passed
-                    // boundaryDofs. Otherwise they will appear in two entities.
+                    // Finally, we need to also remove the nodes of the entities to be moved from the boundary entity just built from the passed
+                    // boundaryDofs. Otherwise they will appear in both entities.
                     for (int j = 0; j < (*it)->getNumNodes(); j++) {
                         auto tmp = tmpEntity->removeNode((*it)->getNode(j));
                         FROSCH_ASSERT(tmp != -1, "FROSch::DDInterface: node to be removed from new boundary entity not found")
-
                     }
                 }
                 std::move(new_end, tmpEntityVector.end(), std::back_inserter(boundaryEntityVector));
                 tmpEntityVector.resize(new_end - tmpEntityVector.begin(),
                                        Teuchos::RCP<InterfaceEntity<SC, LO, GO, NO>>{});
             }
+
+            // Here we check two things for each node in the equivalence classes higher than 1 i.e. not the boundary:
+            // if the node is a boundary node, we remove it, since it will later be added to a "special" boundary
+            // entity. Otherwise we update it's GammaID_. All of the GammaID_'s have been shuffled around by adding the
+            // boundary nodes to the single "interface" interface entity that contains all nodes in the interface.
+            FROSCH_ASSERT(std::is_sorted(boundaryNodes.begin(), boundaryNodes.end()),
+                            "FROSch::DDInterface: boundaryNodes need to be sorted for binary search.")
+            auto interfaceNodes = interface->getConstNodeVectorRef();
+            for (int i = 2; i < EntitySetVector_.size(); i++) {
+                EntitySetVector_[i]->removeNodesWithDofs(boundaryDofs);
+                for (int j = 0; j < EntitySetVector_[i]->getNumEntities(); j++) {
+                    // The remain nodes are not in the boundary and need their gammaIDs updated
+                    for (int k = 0; k < EntitySetVector_[i]->getEntity(j)->getNumNodes(); k++) {
+                        // Find the current node in interface using binary search. This is probably more efficient
+                        // than building a hashed map std::unordered_map since we are finding e.g. 2400 elements for
+                        // subdomains with 640000 in 3D.
+                        auto interfaceNodeIt = std::lower_bound(
+                            interfaceNodes.begin(), interfaceNodes.end(), EntitySetVector_[i]->getEntity(j)->getNode(k),
+                            [](const auto &a, const auto &b) { return a.NodeIDLocal_ < b.NodeIDLocal_; });
+
+                        EntitySetVector_[i]->getEntity(j)->setGammaIDs(
+                            k, interface->getGammaNodeID(std::distance(interfaceNodes.begin(), interfaceNodeIt)));
+                    }
+                }
+            }
+
             // Restore local-ID order on interface.
             interface->sortUniqueByLocalID();
 
