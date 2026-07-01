@@ -170,7 +170,7 @@ namespace FROSch {
     void DDInterface<SC, LO, GO, NO>::addBoundaryNodes(const GOVecView boundaryDofs, const EntityFlag type,
                                                        const int dofOffset) {
         FROSCH_ASSERT(type == DirichletFlag || type == CustomBCFlag,
-                      "addBoundaryNodes() is only for adding Dirichlet or do nothing boundaries");
+                      "addBoundaryNodes() is only for adding Dirichlet or do nothing boundaries")
         // If type == CustomBCFlag and HaveDirichletEntities_ == false we don't add custom boundary since we only want to
         // modify it in conjuction with a Dirichlet entity
         if (boundaryDofs.size() > 0 && (type != CustomBCFlag || HaveDirichletEntities_)) {
@@ -209,7 +209,7 @@ namespace FROSch {
                 }
                 FROSCH_ASSERT(nodeIDLocal >= 0, "The global interface node " + std::to_string(nodeIDGlobal) +
                                                     " does not lie in subdomain " +
-                                                    std::to_string(this->MpiComm_->getRank()));
+                                                    std::to_string(this->MpiComm_->getRank()))
                 interface->addNode(nodeIDBndry, nodeIDLocal, nodeIDGlobal, DofsPerNode_, dofsI, dofsLocal, dofsGlobal);
             }
             // reindex GammaID so that GammaID and local ID are ordered in the same way. See comment*
@@ -294,21 +294,21 @@ namespace FROSch {
                         for (int j = 0; j < entity->getConstNodeVectorRef().length(); j++) {
                             nodeVec[j] = entity->getConstNodeVectorRef()[j].NodeIDGlobal_;
                         }
-                        FROSCH_ASSERT(std::is_sorted(nodeVec.begin(), nodeVec.end()), "nodeVec must be sorted!");
+                        FROSCH_ASSERT(std::is_sorted(nodeVec.begin(), nodeVec.end()), "nodeVec must be sorted!")
                         auto result = !std::includes(boundaryNodes.begin(), boundaryNodes.end(), nodeVec.begin(), nodeVec.end());
                         return result;
                     });
 
                 // Add the nodes of the entities being moved back into the connected entities highest up the entity hierarchy.
                 // This is so that "real" interface entities overlap with boundary entities for later calculations.
-                // The entities in question should be part of a subset of the subdomains that the boundary entity is.
+                // The entities in question should be part of a subset of the subdomains that the boundary entity is part of.
                 // If the subdomain sets only intersect, then it could be any other entity in the current subdomain, and
                 // if the subdomain sets are equal, the current entity would not have been split off.
                 for (auto it = new_end; it != tmpEntityVector.end(); it++) {
                     // We need to the change the type of the entities that we move.
                     (*it)->resetEntityFlag(type);
                     (*it)->resetEntityType(BoundaryType);
-                    FROSCH_ASSERT((*it)->getSubdomainsVector().size() == i, "FROSCH::DDInterface: An entity was found in the wrong equivalence class");
+                    FROSCH_ASSERT((*it)->getSubdomainsVector().size() == i, "FROSCH::DDInterface: An entity was found in the wrong equivalence class")
                     // Start searching in entities with a lower multiplicity
                     for (int j = i - 1; j > 1; j--) {
                         for (int k = 0; k < EntitySetVector_[j]->getNumEntities(); k++) {
@@ -325,6 +325,13 @@ namespace FROSch {
                             // further down the hierarchy e.g. if they were already added to an edge, don't also add
                             // them to a face.
                         }
+                    }
+                    // Finally, we need to also remove these nodes from the boundary entity just built from the passed
+                    // boundaryDofs. Otherwise they will appear in two entities.
+                    for (int j = 0; j < (*it)->getNumNodes(); j++) {
+                        auto tmp = tmpEntity->removeNode((*it)->getNode(j));
+                        FROSCH_ASSERT(tmp != -1, "FROSch::DDInterface: node to be removed from new boundary entity not found")
+
                     }
                 }
                 std::move(new_end, tmpEntityVector.end(), std::back_inserter(boundaryEntityVector));
@@ -482,7 +489,7 @@ namespace FROSch {
                     // Test to see if boundary interface entities have been built properly
                     for (UN i=0; i<EntitySetVector_[l]->getNumEntities(); i++) {
                         auto flag = EntitySetVector_[l]->getEntity(i)->getEntityFlag();
-                        FROSCH_ASSERT(flag == DirichletFlag || flag == CustomBCFlag,"FROSch::DDInterface: EntitySetVector_[1] contains non-boundary entities.");
+                        FROSCH_ASSERT(flag == DirichletFlag || flag == CustomBCFlag,"FROSch::DDInterface: EntitySetVector_[1] contains non-boundary entities.")
                     }
                     break;
                 case 2:
