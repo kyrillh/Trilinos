@@ -175,6 +175,8 @@ namespace FROSch {
         // modify it in conjuction with a Dirichlet entity
         if (boundaryDofs.size() > 0 && (type != CustomBCFlag || HaveDirichletEntities_)) {
 
+            // Change the entity type of boundary entity set from default
+            EntitySetVector_[1]->resetEntityType(BoundaryType);
             const auto interface = Interface_->getEntity(0);
             const int numBoundaryNodes = boundaryDofs.size() / DofsPerNode_;
 
@@ -185,12 +187,6 @@ namespace FROSch {
                 boundaryNodes[i] = (boundaryDofs[i * DofsPerNode_] - dofOffset) / DofsPerNode_;
             }
             sortunique(boundaryNodes);
-
-            //TODO:[KH] can we get rid of this? 
-            Teuchos::Array<GO> boundaryNodesIDsLocal(numBoundaryNodes);
-            FROSCH_ASSERT(
-                boundaryNodes.length() == boundaryNodesIDsLocal.length(),
-                "FROSch::DDInterface: boundaryNodes and boundaryNodesLocalIDs arrays should have the same length")
 
             // Add boundary nodes to interface
             for (LO i = 0; i < boundaryNodes.size(); i++) {
@@ -217,7 +213,6 @@ namespace FROSch {
                                                     " does not lie in subdomain " +
                                                     std::to_string(this->MpiComm_->getRank()))
                 interface->addNode(nodeIDBndry, nodeIDLocal, nodeIDGlobal, DofsPerNode_, dofsI, dofsLocal, dofsGlobal);
-                boundaryNodesIDsLocal[i] = nodeIDLocal;
             }
             // reindex GammaID so that GammaID and local ID are ordered in the same way. See comment*
             interface->sortUniqueByLocalID();
@@ -235,27 +230,6 @@ namespace FROSch {
                                                                              subdomains.data(), CustomBCFlag));
             }
  
-            // Build the tmpEntity with the new gammaIDs and remove nodes from Interior_
-            auto boundaryNodesIt = boundaryNodes.begin();
-            // removeNode() uses binary search on the globalID so requires the nodes to be sorted by globalID
-            Interior_->getEntity(0)->sortByGlobalID();
-            // interface needs to be globally sorted because of how we step through it below 
-            interface->sortByGlobalID();
-            // boundary nodes should all be in the interface at this point. Note the && boundaryNodesIt guard:
-            // once every boundary node has been matched, dereferencing boundaryNodesIt is undefined.
-            for (int i = 0; i < interface->getNumNodes() && boundaryNodesIt != boundaryNodes.end(); i++) {
-                // Only need to deal with nodes actually in the boundary
-                // The boundary nodes were added to the interface above.
-                // That's why at this stage they are in the interface and in the interior.
-                if (*boundaryNodesIt == interface->getGlobalNodeID(i)) {
-                    tmpEntity->addNode(interface->getNode(i));
-                    // If node is not in the entity, removeNode does nothing and returns -1.
-                    Interior_->getEntity(0)->removeNode(interface->getNode(i));
-                    boundaryNodesIt++;
-                }
-            }
-
-
             // Check vectors are sorted for subset operations below
             for (int i = 2; i < EntitySetVector_.size(); i++) {
                 for (int j = 0; j < EntitySetVector_[i]->getNumEntities(); j++) {
@@ -278,7 +252,7 @@ namespace FROSch {
                 // If an entity lies comletely in the Dirichlet boundary, it's moved to the equivalence class 1.
                 // Stable partition moves all entries to the back that fail the test, maintaing relative order.
                 // std::includes returns true if first set is a superset of the second set.
-                auto new_end = std::stable_partition(
+                auto newEnd = std::stable_partition(
                     tmpEntityVector.begin(), tmpEntityVector.end(),
                     [&](Teuchos::RCP<InterfaceEntity<SC, LO, GO, NO>> entity) {
                         std::vector<GO> nodeVec(entity->getConstNodeVectorRef().length());
@@ -290,34 +264,48 @@ namespace FROSch {
                         return result;
                     });
 
-                for (auto it = new_end; it != tmpEntityVector.end(); it++) {
+                for (auto it = newEnd; it != tmpEntityVector.end(); it++) {
                     // We need to change the type of the entities that we move.
                     (*it)->resetEntityFlag(type);
                     (*it)->resetEntityType(BoundaryType);
-                    FROSCH_ASSERT((*it)->getSubdomainsVector().size() == i, "FROSCH::DDInterface: An entity was found in the wrong equivalence class")
-                    // Finally, we need to also remove the nodes of the entities to be moved from the boundary entity just built from the passed
-                    // boundaryDofs. Otherwise they will appear in both entities.
-                    for (int j = 0; j < (*it)->getNumNodes(); j++) {
-                        auto tmp = tmpEntity->removeNode((*it)->getNode(j));
-                        FROSCH_ASSERT(tmp != -1, "FROSch::DDInterface: node to be removed from new boundary entity not found")
-                    }
+                    FROSCH_ASSERT((*it)->getSubdomainsVector().size() == i,
+                                  "FROSCH::DDInterface: An entity was found in the wrong equivalence class")
+                    // Finally, we need to also remove the nodes of the entities to be moved from the boundary nodes
+                    // vector. It will be used to build a boundary entity continaining remaining boundary nodes.
+                    // Boundary entities should not contain duplicate nodes.
+                    auto newBoundaryNodesEnd = std::stable_partition(boundaryNodes.begin(), boundaryNodes.end(), [&](const auto &a) {
+                        std::vector<GO> nodeVec((*it)->getConstNodeVectorRef().length());
+                        for (int j = 0; j < (*it)->getConstNodeVectorRef().length(); j++) {
+                            nodeVec[j] = (*it)->getConstNodeVectorRef()[j].NodeIDGlobal_;
+                        }
+                        FROSCH_ASSERT(std::is_sorted(nodeVec.begin(), nodeVec.end()), "nodeVec must be sorted!")
+                        return !std::binary_search(nodeVec.begin(), nodeVec.end(), a);
+                    });
+                    boundaryNodes.resize(newBoundaryNodesEnd - boundaryNodes.begin());
                 }
-                std::move(new_end, tmpEntityVector.end(), std::back_inserter(boundaryEntityVector));
-                tmpEntityVector.resize(new_end - tmpEntityVector.begin(),
+                std::move(newEnd, tmpEntityVector.end(), std::back_inserter(boundaryEntityVector));
+                tmpEntityVector.resize(newEnd - tmpEntityVector.begin(),
                                        Teuchos::RCP<InterfaceEntity<SC, LO, GO, NO>>{});
             }
 
             // Here we check two things for each node in the equivalence classes higher than 1 i.e. not the boundary:
-            // if the node is a boundary node, we remove it, since it will later be added to a "special" boundary
-            // entity. Otherwise we update it's GammaID_. All of the GammaID_'s have been shuffled around by adding the
-            // boundary nodes to the single "interface" interface entity that contains all nodes in the interface.
+            // if the node is a boundary node, we extract it into a new entity with the same multiplicity etc. and
+            // remove its ID from the boundaryNodes vector. Otherwise we update it's GammaID_. All of the GammaID_'s
+            // have been shuffled around by adding the boundary nodes to the single "interface" interface entity that
+            // contains all nodes in the interface.
+            auto interfaceNodes = interface->getConstNodeVectorRef();
             FROSCH_ASSERT(std::is_sorted(boundaryNodes.begin(), boundaryNodes.end()),
                             "FROSch::DDInterface: boundaryNodes need to be sorted for binary search.")
-            auto interfaceNodes = interface->getConstNodeVectorRef();
+            FROSCH_ASSERT(std::is_sorted(interfaceNodes.begin(), interfaceNodes.end(), [](const auto &a, const auto &b){ return a.NodeIDLocal_ < b.NodeIDLocal_;}),
+                            "FROSch::DDInterface: interfaceNodes need to be sorted by localy ID for binary search.")
             for (int i = 2; i < EntitySetVector_.size(); i++) {
-                EntitySetVector_[i]->removeNodesWithDofs(boundaryDofs);
+                auto tmpEntitySet = Teuchos::rcp(new EntitySet<SC, LO, GO, NO>(BoundaryType));
+                // Goes through all nodes in the entities of the current entity set. If they are in boundaryNodes
+                // vector, they are moved to a new boundary entity and also removed from boundaryNodes vector.
+                EntitySetVector_[i]->moveNodesWithIDsToBoundary(boundaryNodes, tmpEntitySet);
+                EntitySetVector_[1]->addEntitySet(tmpEntitySet);
                 for (int j = 0; j < EntitySetVector_[i]->getNumEntities(); j++) {
-                    // The remain nodes are not in the boundary and need their gammaIDs updated
+                    // The remaining nodes are not in the boundary and need their gammaIDs updated
                     for (int k = 0; k < EntitySetVector_[i]->getEntity(j)->getNumNodes(); k++) {
                         // Find the current node in interface using binary search. This is probably more efficient
                         // than building a hashed map std::unordered_map since we are finding e.g. 2400 elements for
@@ -331,6 +319,28 @@ namespace FROSch {
                     }
                 }
             }
+
+            // Build the tmpEntity with the new gammaIDs and remove nodes from Interior_
+            auto boundaryNodesIt = boundaryNodes.begin();
+            // removeNode() uses binary search on the globalID so requires the nodes to be sorted by globalID
+            Interior_->getEntity(0)->sortByGlobalID();
+            // interface needs to be globally sorted because of how we step through it below 
+            interface->sortByGlobalID();
+            // boundary nodes should all be in the interface at this point. Note the && boundaryNodesIt guard:
+            // once every boundary node has been matched, dereferencing boundaryNodesIt is undefined.
+            for (int i = 0; i < interface->getNumNodes() && boundaryNodesIt != boundaryNodes.end(); i++) {
+                // Only need to deal with nodes actually in the boundary
+                // The boundary nodes were added to the interface above.
+                // That's why at this stage they are in the interface and in the interior.
+                if (*boundaryNodesIt == interface->getGlobalNodeID(i)) {
+                    tmpEntity->addNode(interface->getNode(i));
+                    // If node is not in the entity, removeNode does nothing and returns -1.
+                    Interior_->getEntity(0)->removeNode(interface->getNode(i));
+                    boundaryNodesIt++;
+                }
+            }
+
+
 
             // Restore local-ID order on interface.
             interface->sortUniqueByLocalID();

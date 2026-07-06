@@ -664,23 +664,28 @@ namespace FROSch {
                                            "calculated without coordinates of the nodes!");
         FROSCH_ASSERT(dimension == nodeList->getNumVectors(), "FROSch::InterfaceEntity: Inconsistent Dimension.");
 
-        // We only do this check to avoid searching through every entity unnecessarily for intersection with Dirichlet entities.
-        bool dirichletIntersection = false;
-        // In 2D we are only interested in entities with one root since these are edges that end at the real boundary
+        // We only do this check to avoid searching through every entity
+        // unnecessarily for a neighboring Dirichlet entity.
+        bool dirichletNeighbor = false;
+        // In 2D we are only interested in entities with one root since these
+        // are edges that end at the real boundary
         if (dimension == 2 && Roots_->getNumEntities() == 1) {
-            dirichletIntersection = true;
+            dirichletNeighbor = true;
 
-        // In 3D, multiplicity greater than 2 means an edge or a vertex. The edge may intersect with the Dirichlet boundary.
+            // In 3D, multiplicity greater than 2 means an edge or a vertex. The
+            // edge may by a neighbor of a Dirichlet boundary entity.
         } else if (dimension == 3 && Multiplicity_ > 2 && Roots_->getNumEntities() == 1) {
-            dirichletIntersection = true;
-        // In 3D, multiplicity of two means a face. Ancestors_ stores surrounding edges and vertices. Roots_ stores surrounding
-        // vertices. If the face is internal then vertex count and edge count should be equal. If it's not, we are
-        // dealing with a face that intersects the Dirichlet boundary because this intersection removes one edge and both adjacent vertices.
-        } else if (dimension == 3 && Multiplicity_ == 2 && 2*Roots_->getNumEntities() != Ancestors_->getNumEntities()) {
-            dirichletIntersection = true;
+            dirichletNeighbor = true;
+            // In 3D, multiplicity of two means a face. Ancestors_ stores surrounding edges and vertices. Roots_ stores
+            // surrounding vertices. If the face is internal then vertex count and edge count should be equal. If it's
+            // not, we are dealing with a face that is a neighbor of the Dirichlet boundary because this removes one
+            // edge and both adjacent vertices or a single vertex.
+        } else if (dimension == 3 && Multiplicity_ == 2 &&
+                   2 * Roots_->getNumEntities() != Ancestors_->getNumEntities()) {
+            dirichletNeighbor = true;
         }
 
-        if (dirichletIntersection) {
+        if (dirichletNeighbor) {
             auto dirichletEntities = rcp(new EntitySet<SC, LO, GO, NO>(BoundaryType));
             // Extract Dirichlet entities (if they exist)
             for (int i = 0; i < entitySetVector[1]->getNumEntities(); i++) {
@@ -688,25 +693,24 @@ namespace FROSch {
                     dirichletEntities->addEntity(entitySetVector[1]->getEntity(i));
                 }
             }
-            // Does this entity intersect with the Dirichlet boundary?
-            // Gather all of the Dirichlet entities for which an intersection was found
+            // Is this entity a neighbor with the Dirichlet boundary?
+            // Gather all of the Dirichlet entities for which this is true
             Teuchos::Array<UN> dirichletEntityIDs;
+            // The entities in question should be part of a subset of the subdomains that the boundary entity is part
+            // of. If the subdomain sets only intersect, then it could be any other entity in the current subdomain. The
+            // subdomain sets could be equal i.e. subset equal operator above. Start searching in entities with a lower
+            // multiplicity
+            FROSCH_ASSERT(std::is_sorted(this->getSubdomainsVector().begin(), this->getSubdomainsVector().end()),
+                          "FROSch::InterfaceEntity: subdomains vector must be sorted for std::includes.")
             for (int i = 0; i < dirichletEntities->getNumEntities(); i++) {
-                auto itD = dirichletEntities->getEntity(i)->getConstNodeVectorRef().begin();
-                auto it = NodeVector_.begin();
-                while (it != NodeVector_.end() &&
-                       itD != dirichletEntities->getEntity(i)->getConstNodeVectorRef().end()) {
-                    if (*it < *itD) {
-                        // it needs to catch up
-                        it++;
-                    } else if (*itD < *it) {
-                        // itD needs to catch up
-                        itD++;
-                    } else {
-                        // We found a common element
-                        dirichletEntityIDs.push_back(i);
-                        break;
-                    }
+                const auto &tmpSubdomainsVec = dirichletEntities->getEntity(i)->getSubdomainsVector();
+                FROSCH_ASSERT(std::is_sorted(tmpSubdomainsVec.begin(), tmpSubdomainsVec.end()),
+                              "FROSch::InterfaceEntity: subdomains vector must be sorted for std::includes.")
+                // Check if the entity subdomain set is a subset of the Dirichlet entity subdomain set.
+                if (std::includes(tmpSubdomainsVec.begin(), tmpSubdomainsVec.end(), getSubdomainsVector().begin(),
+                                  getSubdomainsVector().end())) {
+                    // Mark this Dirichlet entity as a neighbor
+                    dirichletEntityIDs.push_back(i);
                 }
             }
             // If a neighboring Dirichlet entity was found we need to act
@@ -772,14 +776,7 @@ namespace FROSch {
                                   "FROSch::InterfaceEntity: Interface entities should never overlap with their roots.")
                         DistancesVector_[i][j] = ScalarTraits<SC>::one() / DistancesVector_[i][j];
                     }
-                    // Handle possible division by zero because Dirichlet entities share nodes with "real" interface
-                    // entities i.e. entities that are part of the classical equivalence classes.
-                    if (distancesVectorDirichlet[i] < 10 * numeric_limits<SC>::min()) {
-                        // This should result in an inverse Euclidean distance of almost zero
-                        distancesVectorDirichlet[i] = 0.1 * std::numeric_limits<SC>::max();
-                    } else {
-                        distancesVectorDirichlet[i] = ScalarTraits<SC>::one() / distancesVectorDirichlet[i];
-                    }
+                    distancesVectorDirichlet[i] = ScalarTraits<SC>::one() / distancesVectorDirichlet[i];
                 }
                 // The last "column" stores the sum of the distances from node i to the root and the Dirichlet entity.
                 // Required for the inverse Euclidean formulation.

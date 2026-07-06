@@ -11,9 +11,11 @@
 #define _FROSCH_ENTITYSET_DEF_HPP
 
 #include "FROSch_InterfaceEntity_decl.hpp"
+#include "FROSch_Output.h"
 #include <FROSch_EntitySet_decl.hpp>
 #include <FROSch_InterfaceEntity_def.hpp>
 #include <FROSch_Tools_def.hpp>
+#include <algorithm>
 
 
 namespace FROSch {
@@ -374,6 +376,49 @@ namespace FROSch {
                 }
             }
         }
+        return 0;
+    }
+
+    // Part of the boundary framework
+    /**
+     * @brief search for the nodes passed in dirichletBoundaryNodes in entities in this set. If they are found they are
+     * moved to a new entity in of type BoundaryType and also removed dirichletBoundaryNodes.
+     * @param dirichletBoundaryNodes global node IDs to be moved
+     * @param optional entity set to which the split off entities are added
+     */
+    template<class SC,class LO,class GO,class NO>
+    int EntitySet<SC,LO,GO,NO>::moveNodesWithIDsToBoundary(GOVec &dirichletBoundaryNodes, EntitySetPtr newEntitySet)
+    {
+        FROSCH_ASSERT(std::is_sorted(dirichletBoundaryNodes.begin(), dirichletBoundaryNodes.end()), "FROSch::EntitySet: dirichletBoundaryNodes vector must be sorted for binary search.")
+        auto endIt = dirichletBoundaryNodes.end();
+        for (UN i=0; i<getNumEntities(); i++) {
+            InterfaceEntityPtr newEntity = Teuchos::null;
+            UN length = getEntity(i)->getNumNodes();
+            for (UN j = 0; j < length; j++) {
+                // Start at the back to not break the indexing as nodes are deleted.
+                UN itmp = length - 1 - j;
+                GO globalID = getEntity(i)->getGlobalNodeID(itmp);
+                if (binary_search(dirichletBoundaryNodes.begin(), endIt, globalID)) {
+                    // Build a new entity if we have an entity set and have not already built one
+                    if (!newEntitySet.is_null() && newEntity.is_null()) {
+                        newEntity.reset(new InterfaceEntity<SC, LO, GO, NO>(
+                            BoundaryType, getEntity(i)->getDofsPerNode(),
+                            getEntity(i)->getMultiplicity(), getEntity(i)->getSubdomainsVector().data(), DirichletFlag));
+                    }
+                    if (!newEntity.is_null()) {
+                        newEntity->addNode(getEntity(i)->getNode(itmp));
+                    }
+                    getEntity(i)->removeNode(itmp);
+                    // Move the Dirichlet node just removed to the back of the vector. It's no longer needed.
+                    endIt = std::remove(dirichletBoundaryNodes.begin(), endIt, globalID);
+                }
+            }
+            if (!newEntity.is_null()) {
+                newEntitySet->addEntity(newEntity);
+            }
+        }
+        // Remove all touched Dirichlet nodes. They are now in their own entities.
+        dirichletBoundaryNodes.resize(endIt - dirichletBoundaryNodes.begin());
         return 0;
     }
 

@@ -106,6 +106,8 @@ namespace FROSch {
         int removeEntity(UN iD);
 
         int removeNodesWithDofs(GOVecView dirichletBoundaryDofs);
+
+        int moveNodesWithIDsToBoundary(GOVec &dirichletBoundaryDofs, EntitySetPtr newEntitySet = Teuchos::null);
         
         int removeEmptyEntities();
 
