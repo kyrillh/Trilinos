@@ -167,13 +167,13 @@ namespace FROSch {
 
     // Part of the boundary framework
     template <class SC, class LO, class GO, class NO>
-    void DDInterface<SC, LO, GO, NO>::addBoundaryNodes(const GOVecView boundaryDofs, const EntityFlag type,
+    void DDInterface<SC, LO, GO, NO>::addBoundaryNodes(const GOVecView boundaryDofs, const EntityFlag flag,
                                                        const int dofOffset) {
-        FROSCH_ASSERT(type == DirichletFlag || type == CustomBCFlag,
+        FROSCH_ASSERT(flag == DirichletFlag || flag == CustomBCFlag,
                       "addBoundaryNodes() is only for adding Dirichlet or do nothing boundaries")
         // If type == CustomBCFlag and HaveDirichletEntities_ == false we don't add custom boundary since we only want to
         // modify it in conjuction with a Dirichlet entity
-        if (boundaryDofs.size() > 0 && (type != CustomBCFlag || HaveDirichletEntities_)) {
+        if (boundaryDofs.size() > 0 && (flag != CustomBCFlag || HaveDirichletEntities_)) {
 
             // Change the entity type of boundary entity set from default
             EntitySetVector_[1]->resetEntityType(BoundaryType);
@@ -221,15 +221,8 @@ namespace FROSch {
             // Create an entity just for the boundary nodes
             constexpr UN multiplicity = 1;
             IntVec subdomains({MpiComm_->getRank()});
-            RCP<InterfaceEntity<SC, LO, GO, NO>> tmpEntity;
-            if (type == DirichletFlag) {
-                tmpEntity = Teuchos::rcp(new InterfaceEntity<SC, LO, GO, NO>(BoundaryType, DofsPerNode_, multiplicity,
-                                                                             subdomains.data(), DirichletFlag));
-            } else if (type == CustomBCFlag) {
-                tmpEntity = Teuchos::rcp(new InterfaceEntity<SC, LO, GO, NO>(BoundaryType, DofsPerNode_, multiplicity,
-                                                                             subdomains.data(), CustomBCFlag));
-            }
- 
+            auto tmpEntity = Teuchos::rcp(new InterfaceEntity<SC, LO, GO, NO>(BoundaryType, DofsPerNode_, multiplicity,
+                                                                             subdomains.data(), flag));
             // Check vectors are sorted for subset operations below
             for (int i = 2; i < EntitySetVector_.size(); i++) {
                 for (int j = 0; j < EntitySetVector_[i]->getNumEntities(); j++) {
@@ -266,7 +259,7 @@ namespace FROSch {
 
                 for (auto it = newEnd; it != tmpEntityVector.end(); it++) {
                     // We need to change the type of the entities that we move.
-                    (*it)->resetEntityFlag(type);
+                    (*it)->resetEntityFlag(flag);
                     (*it)->resetEntityType(BoundaryType);
                     FROSCH_ASSERT((*it)->getSubdomainsVector().size() == i,
                                   "FROSCH::DDInterface: An entity was found in the wrong equivalence class")
@@ -288,11 +281,11 @@ namespace FROSch {
                                        Teuchos::RCP<InterfaceEntity<SC, LO, GO, NO>>{});
             }
 
-            // Here we check two things for each node in the equivalence classes higher than 1 i.e. not the boundary:
-            // if the node is a boundary node, we extract it into a new entity with the same multiplicity etc. and
-            // remove its ID from the boundaryNodes vector. Otherwise we update it's GammaID_. All of the GammaID_'s
-            // have been shuffled around by adding the boundary nodes to the single "interface" interface entity that
-            // contains all nodes in the interface.
+            // Here we do two things for each node in the equivalence classes higher than 1 i.e. not the boundary: we
+            // update it's GammaID_. All of the GammaID_'s have been shuffled around by adding the boundary nodes to the
+            // single "interface" interface entity that contains all nodes in the interface.If the node is a boundary
+            // node, we extract it into a new entity with the same multiplicity etc. and remove its ID from the
+            // boundaryNodes vector.
             auto interfaceNodes = interface->getConstNodeVectorRef();
             FROSCH_ASSERT(std::is_sorted(boundaryNodes.begin(), boundaryNodes.end()),
                             "FROSch::DDInterface: boundaryNodes need to be sorted for binary search.")
@@ -300,10 +293,6 @@ namespace FROSch {
                             "FROSch::DDInterface: interfaceNodes need to be sorted by localy ID for binary search.")
             for (int i = 2; i < EntitySetVector_.size(); i++) {
                 auto tmpEntitySet = Teuchos::rcp(new EntitySet<SC, LO, GO, NO>(BoundaryType));
-                // Goes through all nodes in the entities of the current entity set. If they are in boundaryNodes
-                // vector, they are moved to a new boundary entity and also removed from boundaryNodes vector.
-                EntitySetVector_[i]->moveNodesWithIDsToBoundary(boundaryNodes, tmpEntitySet);
-                EntitySetVector_[1]->addEntitySet(tmpEntitySet);
                 for (int j = 0; j < EntitySetVector_[i]->getNumEntities(); j++) {
                     // The remaining nodes are not in the boundary and need their gammaIDs updated
                     for (int k = 0; k < EntitySetVector_[i]->getEntity(j)->getNumNodes(); k++) {
@@ -318,6 +307,10 @@ namespace FROSch {
                             k, interface->getGammaNodeID(std::distance(interfaceNodes.begin(), interfaceNodeIt)));
                     }
                 }
+                // Goes through all nodes in the entities of the current entity set. If they are in boundaryNodes
+                // vector, they are moved to a new boundary entity and also removed from boundaryNodes vector.
+                EntitySetVector_[i]->moveNodesWithIDsToBoundary(boundaryNodes, tmpEntitySet, flag);
+                EntitySetVector_[1]->addEntitySet(tmpEntitySet);
             }
 
             // Build the tmpEntity with the new gammaIDs and remove nodes from Interior_
@@ -352,7 +345,7 @@ namespace FROSch {
             // i.e. entities in which the union of the support of associated finitie element basis functions forms a
             // connected set. This is done in a later call to sortInterface()
             EntitySetVector_[1]->addEntity(tmpEntity);
-            if (type == DirichletFlag) {
+            if (flag == DirichletFlag) {
                 HaveDirichletEntities_ = true;
             }
         }

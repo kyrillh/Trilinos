@@ -467,6 +467,11 @@ namespace FROSch {
     }
 
     // Part of the boundary framework
+    // NOTE:[KH] This function was built for the 2D LDC problem. In this context it works, but contains an
+    // inconsistency. The interface values of some boundary entities (the single node entites that border the Neumann/do
+    // nothing boundary), have a different value on each subdomain that owns that node (two subdomains per node). This
+    // difference gets smaller as h gets smaller, but it's not strictly correct. Could be improved if necessary, but the
+    // approach didn't work for the P2P1 unstabilizied discretization.
     template <class SC, class LO, class GO, class NO>
     int InterfaceEntity<SC, LO, GO, NO>::computeDistancesOnBoundary(UN dimension, ConstXMultiVectorPtr &nodeList,
                                                                     ArrayRCP<EntitySetPtr> entitySetVector) {
@@ -537,50 +542,7 @@ namespace FROSch {
             } else {
                 // In this case there is exactly one Dirichlet and one interface entity higher up the hierarchy as
                 // neighbors
-
-                // Find the interface neighbor that is furthest down the hierarchy e.g. a face instead of an edge
-                // contained by the face. Not sure if this should be the other way around, but a face contains a
-                // superset of the nodes of a contained edge, so the min. distance to the face will be smaller than the
-                // min. distance to the edge.
-                InterfaceEntityPtr neighbor;
-                FROSCH_ASSERT(std::is_sorted(NodeVector_.begin(), NodeVector_.end()),
-                              "FROSch::InterfaceEntity: the intersection algorithm requires sorted node vectors")
-                // Only care about entities that are part of at least two subdomains i.e. "real" interface entities.
-                int multiplicity = 2;
-                // Go up the interface entity hierarchy
                 FROSCH_ASSERT(dimension == 2, "FROSch::InterfaceEntity::computeDistancesOnBoundary: Only implemented for 2D at the moment.");
-                // TODO: [KH] this works in 2D with one subdomain per rank, because a do nothing entity with one
-                // Dirichlet neighbor can only have one other end that shares a node with an interface entity higher up
-                // the hierarchy. In 3D multiple neighbors are possible. In this case we either have to calculate the
-                // inverse Euclidean distances to all neighbors and add them, or take the min. distance for each node.
-                while (neighbor.is_null() && multiplicity < entitySetVector.size()) {
-                    // At each level we check every entity
-                    int i = 0;
-                    while (neighbor.is_null() && i < entitySetVector[multiplicity]->getNumEntities()) {
-                        auto nodeVec = entitySetVector[multiplicity]->getEntity(i)->getConstNodeVectorRef();
-                        // Efficient O(N + M) search for common nodes. Assumes that the NodeVectors are sorted
-                        FROSCH_ASSERT(
-                            std::is_sorted(nodeVec.begin(), nodeVec.end()),
-                            "FROSch::InterfaceEntity: the intersection algorithm requires sorted node vectors")
-                        auto it1 = nodeVec.begin();
-                        auto it2 = NodeVector_.begin();
-                        while (it1 != nodeVec.end() && it2 != NodeVector_.end()) {
-                            if (*it1 < *it2) {
-                                it1++;
-                            } else if (*it2 < *it1) {
-                                it2++;
-                            } else {
-                                neighbor = entitySetVector[multiplicity]->getEntity(i);
-                                break;
-                            }
-                        }
-                        i++;
-                    }
-                    multiplicity++;
-                }
-
-                FROSCH_ASSERT(!neighbor.is_null(),
-                              "FROSch::InterfaceEntity: no neighbor entity found for do nothing entity");
 
                 SCVecPtr dirichletDistance = ArrayRCP<SC>(NodeVector_.size(), numeric_limits<SC>::max());
                 // Iterate over the whole Dirichlet entity and keep the min. distance
@@ -605,23 +567,25 @@ namespace FROSch {
                 }
 
                 // Iterate over the whole neighbor entity and keep the min. distance
-                for (UN i = 0; i < neighbor->getNumNodes(); i++) {
-                    // Coordinates of node j of the Dirichlet entity
-                    SCVecPtr neighborNode(dimension);
-                    for (UN j = 0; j < dimension; j++) {
-                        neighborNode[j] = nodeList->getData(j)[neighbor->getLocalNodeID(i)];
-                    }
-                    for (UN j = 0; j < NodeVector_.size(); j++) {
-                        SC distance = ScalarTraits<SC>::zero();
-                        // Compute quadratic distance between node j in the Dirichlet entity and all the nodes in
-                        // this entity
-                        for (UN k = 0; k < dimension; k++) {
-                            distance += (nodeList->getData(k)[this->getLocalNodeID(j)] - neighborNode[k]) *
-                                        (nodeList->getData(k)[this->getLocalNodeID(j)] - neighborNode[k]);
+                for (UN m = 0; m < entitySetVector[2]->getNumEntities(); m++) {
+                    for (UN i = 0; i < entitySetVector[2]->getEntity(m)->getNumNodes(); i++) {
+                        // Coordinates of node j of the Dirichlet entity
+                        SCVecPtr neighborNode(dimension);
+                        for (UN j = 0; j < dimension; j++) {
+                            neighborNode[j] = nodeList->getData(j)[entitySetVector[2]->getEntity(m)->getLocalNodeID(i)];
                         }
-                        distance = sqrt(distance);
-                        // Keep the min. distance over all nodes in the neighbor entity (loop i)
-                        DistancesVector_[j][0] = min(DistancesVector_[j][0], distance);
+                        for (UN j = 0; j < NodeVector_.size(); j++) {
+                            SC distance = ScalarTraits<SC>::zero();
+                            // Compute quadratic distance between node j in the Dirichlet entity and all the nodes in
+                            // this entity
+                            for (UN k = 0; k < dimension; k++) {
+                                distance += (nodeList->getData(k)[this->getLocalNodeID(j)] - neighborNode[k]) *
+                                            (nodeList->getData(k)[this->getLocalNodeID(j)] - neighborNode[k]);
+                            }
+                            distance = sqrt(distance);
+                            // Keep the min. distance over all nodes in all neighbor entities (loop m and i)
+                            DistancesVector_[j][0] = min(DistancesVector_[j][0], distance);
+                        }
                     }
                 }
 
@@ -631,14 +595,10 @@ namespace FROSch {
                     FROSCH_ASSERT(dirichletDistance[i] > 10 * numeric_limits<SC>::min(),
                                   "FROSch::InterfaceEntity: Dirichlet entities should never overlap with other "
                                   "boundary entities.")
+
                     dirichletDistance[i] = ScalarTraits<SC>::one() / dirichletDistance[i];
-                    // neighborDistance might be zero since boundary entities are constructed to overlap with their
-                    // neighbors
-                    if (DistancesVector_[i][0] < 10 * numeric_limits<SC>::min()) {
-                        DistancesVector_[i][0] = ScalarTraits<SC>::zero();
-                    } else {
-                        DistancesVector_[i][0] = ScalarTraits<SC>::one() / DistancesVector_[i][0];
-                    }
+                    DistancesVector_[i][0] = ScalarTraits<SC>::one() / DistancesVector_[i][0];
+
                     // For every root there is a coarse basis function, each of which requires this distance, so we copy
                     // the distance to entries for all other roots.
                     for (UN j = 1; j < Roots_->getNumEntities(); j++) {

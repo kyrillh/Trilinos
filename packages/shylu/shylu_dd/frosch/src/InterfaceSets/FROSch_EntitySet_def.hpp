@@ -387,7 +387,7 @@ namespace FROSch {
      * @param optional entity set to which the split off entities are added
      */
     template<class SC,class LO,class GO,class NO>
-    int EntitySet<SC,LO,GO,NO>::moveNodesWithIDsToBoundary(GOVec &dirichletBoundaryNodes, EntitySetPtr newEntitySet)
+    int EntitySet<SC,LO,GO,NO>::moveNodesWithIDsToBoundary(GOVec &dirichletBoundaryNodes, EntitySetPtr newEntitySet, EntityFlag flag)
     {
         FROSCH_ASSERT(std::is_sorted(dirichletBoundaryNodes.begin(), dirichletBoundaryNodes.end()), "FROSch::EntitySet: dirichletBoundaryNodes vector must be sorted for binary search.")
         auto endIt = dirichletBoundaryNodes.end();
@@ -403,7 +403,7 @@ namespace FROSch {
                     if (!newEntitySet.is_null() && newEntity.is_null()) {
                         newEntity.reset(new InterfaceEntity<SC, LO, GO, NO>(
                             BoundaryType, getEntity(i)->getDofsPerNode(),
-                            getEntity(i)->getMultiplicity(), getEntity(i)->getSubdomainsVector().data(), DirichletFlag));
+                            getEntity(i)->getMultiplicity(), getEntity(i)->getSubdomainsVector().data(), flag));
                     }
                     if (!newEntity.is_null()) {
                         newEntity->addNode(getEntity(i)->getNode(itmp));
