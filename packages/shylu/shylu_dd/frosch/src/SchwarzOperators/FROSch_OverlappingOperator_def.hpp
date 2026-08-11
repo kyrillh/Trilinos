@@ -34,7 +34,8 @@ namespace FROSch {
             Combine_ = Restricted;
         }
 
-        if (this->ParameterList_->sublist("Parameter").get("Use Pressure Projection",false) || this->ParameterList_->get("Use Pressure Correction",false)) {
+        // The "Use Pressure Projection" flag is set at two different locations in Newton-Krylov-Schwarz and nonlinear Schwarz. Check both locations
+        if (this->ParameterList_->sublist("Parameter").get("Use Pressure Projection",false) || this->ParameterList_->get("Use Pressure Projection",false)) {
             this->sumAA_ = -1;
             this->aProjection_ = ExtractPtrFromParameterList<XMultiVector >(*this->ParameterList_,"Projection");
             FROSCH_ASSERT(!this->aProjection_.is_null(),"FROSch::OverlappingOperator: the projection extracted from the parameter list does not exist.");
@@ -100,11 +101,9 @@ namespace FROSch {
         }
         SubdomainSolver_->apply(*XOverlap_,*YOverlap_,mode,ScalarTraits<SC>::one(),ScalarTraits<SC>::zero());
         YOverlap_->replaceMap(OverlappingMap_);
-
-        // Check for different flags since Lea's version for linear Schwarz built into the FEDDLib mixes Pressure
-        // Projection and Pressure Correction
-        if (!this->aProjection_.is_null() && (this->ParameterList_->get("Use Pressure Projection", false) ||
-                                              this->ParameterList_->get("Use Local Pressure Correction", false))) {
+        if (!this->aProjection_.is_null() &&
+            (this->ParameterList_->sublist("Parameter").get("Use Pressure Projection", false) ||
+             this->ParameterList_->get("Use Pressure Projection", false))) {
 
             FROSCH_TIMER_START_LEVELID(applyTime, "Apply Pressure Projection");
 
