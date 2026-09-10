@@ -10,6 +10,7 @@
 #ifndef _FROSCH_HARMONICCOARSEOPERATOR_DEF_HPP
 #define _FROSCH_HARMONICCOARSEOPERATOR_DEF_HPP
 
+#include "Teuchos_ParameterList.hpp"
 #include <FROSch_HarmonicCoarseOperator_decl.hpp>
 #include <FROSch_CoarseOperator_def.hpp>
 #include <FROSch_ExtractSubmatrices_def.hpp>
@@ -816,7 +817,8 @@ namespace FROSch {
 
         // Jetzt der solver für kII
         if (indicesIDofsAll.size()>0) {
-            if (this->coarseExtractLocalSubdomainMatrix_Symbolic_Done_) {
+            // PARDISOMKL initialization is deferred until numerical KII values are available.
+            if (this->coarseExtractLocalSubdomainMatrix_Symbolic_Done_ && !ExtensionSolver_.is_null()) {
                 ExtensionSolver_->updateMatrix(kII, true);
             } else {
                 ExtensionSolver_ = SolverFactory<SC,LO,GO,NO>::Build(kII,
@@ -1185,11 +1187,17 @@ namespace FROSch {
 
             BuildSubmatrices(repeatedMatrix.getConst(),indicesIDofsAll(),kII,kIGamma,kGammaI,kGammaGamma);
 
-            // perform symbolic on kII
-            ExtensionSolver_ = SolverFactory<SC,LO,GO,NO>::Build(kII,
-                                                                 sublist(this->ParameterList_,"ExtensionSolver"),
-                                                                 string("ExtensionSolver (Level ") + to_string(this->LevelID_) + string(")"));
-            ExtensionSolver_->initialize();
+            // For PARDISOMKL, defer solver initialization to computeExtensions() so that weighted matching uses real
+            // matrix values instead of 0.0 placeholders passed here. c.f. similar exception in
+            // AlgebraicOverlappingOperator::initialize()
+            ExtensionSolver_ = Teuchos::null;
+            auto solverName = this->ParameterList_->sublist("ExtensionSolver").get("Solver", "Klu");
+            if (solverName != "PARDISOMKL") {
+                ExtensionSolver_ = SolverFactory<SC,LO,GO,NO>::Build(kII,
+                                                                     sublist(this->ParameterList_, "ExtensionSolver"),
+                                                                     string("ExtensionSolver (Level ") + to_string(this->LevelID_) + string(")"));
+                ExtensionSolver_->initialize();
+            }
         }
     }
 

@@ -88,9 +88,9 @@ namespace FROSch {
         bool reuseSymbolicFactorization = this->ParameterList_->get("Reuse: Symbolic Factorization",true);
         if (this->ExtractLocalSubdomainMatrix_Symbolic_Done_ && reuseSymbolicFactorization) {
             // For PARDISOMKL, defer solver initialization to compute() so that weighted
-            // matching uses real matrix values instead of placeholders.
-            ParameterListPtr solverList = sublist(this->ParameterList_, "Solver");
-            std::string solverName = solverList->get("Solver", "Klu");
+            // matching uses real matrix values instead of placeholders c.f. similar exception in
+            // HarmonicCoarseOperator::extractLocalSubdomainMatrix_Symbolic()
+            std::string solverName = this->ParameterList_->sublist("Solver").get("Solver", "Klu");
             if (solverName != "PARDISOMKL") {
                 this->initializeSubdomainSolver(this->localSubdomainMatrix_);
             }
