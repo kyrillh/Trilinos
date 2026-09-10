@@ -223,69 +223,9 @@ namespace FROSch {
             IntVec subdomains({MpiComm_->getRank()});
             auto tmpEntity = Teuchos::rcp(new InterfaceEntity<SC, LO, GO, NO>(BoundaryType, DofsPerNode_, multiplicity,
                                                                              subdomains.data(), flag));
-            // Check vectors are sorted for subset operations below
-            for (int i = 2; i < EntitySetVector_.size(); i++) {
-                for (int j = 0; j < EntitySetVector_[i]->getNumEntities(); j++) {
-                    auto tmpEntityNodesVec = EntitySetVector_[i]->getEntity(j)->getConstNodeVectorRef();
-                    FROSCH_ASSERT(std::is_sorted(tmpEntityNodesVec.begin(), tmpEntityNodesVec.end()),
-                                  "FROSch::DDInterface: std::includes requires sorted vectors.")
-                    FROSCH_ASSERT(std::is_sorted(boundaryNodes.begin(), boundaryNodes.end()),
-                                  "FROSch::DDInterface: std::includes requires sorted vectors.")
-                }
-            }
-            // Now check whether there are any entities in equivalence classes higher than 1, that lie completely in the
-            // Dirichlet boundary. E.g. in 2D backward-facing step a regular decomposition will result in an interface
-            // vertex at the corner of the step because it belongs to three subdomains.
-            // If such an entity is found, move it to the equivalence class 1, together with all of the other boundary
-            // entities.
-            auto& boundaryEntityVector = EntitySetVector_[1]->getEntityVector();
-            for (int i = 2; i < EntitySetVector_.size(); i++) {
-                // Get the entities in the current set.
-                auto& tmpEntityVector = EntitySetVector_[i]->getEntityVector();
-                // If an entity lies comletely in the Dirichlet boundary, it's moved to the equivalence class 1.
-                // Stable partition moves all entries to the back that fail the test, maintaing relative order.
-                // std::includes returns true if first set is a superset of the second set.
-                auto newEnd = std::stable_partition(
-                    tmpEntityVector.begin(), tmpEntityVector.end(),
-                    [&](Teuchos::RCP<InterfaceEntity<SC, LO, GO, NO>> entity) {
-                        std::vector<GO> nodeVec(entity->getConstNodeVectorRef().length());
-                        for (int j = 0; j < entity->getConstNodeVectorRef().length(); j++) {
-                            nodeVec[j] = entity->getConstNodeVectorRef()[j].NodeIDGlobal_;
-                        }
-                        FROSCH_ASSERT(std::is_sorted(nodeVec.begin(), nodeVec.end()), "nodeVec must be sorted!")
-                        auto result = !std::includes(boundaryNodes.begin(), boundaryNodes.end(), nodeVec.begin(), nodeVec.end());
-                        return result;
-                    });
-
-                for (auto it = newEnd; it != tmpEntityVector.end(); it++) {
-                    // We need to change the type of the entities that we move.
-                    (*it)->resetEntityFlag(flag);
-                    (*it)->resetEntityType(BoundaryType);
-                    FROSCH_ASSERT((*it)->getSubdomainsVector().size() == i,
-                                  "FROSCH::DDInterface: An entity was found in the wrong equivalence class")
-                    // Finally, we need to also remove the nodes of the entities to be moved from the boundary nodes
-                    // vector. It will be used to build a boundary entity continaining remaining boundary nodes.
-                    // Boundary entities should not contain duplicate nodes.
-                    auto newBoundaryNodesEnd = std::stable_partition(boundaryNodes.begin(), boundaryNodes.end(), [&](const auto &a) {
-                        std::vector<GO> nodeVec((*it)->getConstNodeVectorRef().length());
-                        for (int j = 0; j < (*it)->getConstNodeVectorRef().length(); j++) {
-                            nodeVec[j] = (*it)->getConstNodeVectorRef()[j].NodeIDGlobal_;
-                        }
-                        FROSCH_ASSERT(std::is_sorted(nodeVec.begin(), nodeVec.end()), "nodeVec must be sorted!")
-                        return !std::binary_search(nodeVec.begin(), nodeVec.end(), a);
-                    });
-                    boundaryNodes.resize(newBoundaryNodesEnd - boundaryNodes.begin());
-                }
-                std::move(newEnd, tmpEntityVector.end(), std::back_inserter(boundaryEntityVector));
-                tmpEntityVector.resize(newEnd - tmpEntityVector.begin(),
-                                       Teuchos::RCP<InterfaceEntity<SC, LO, GO, NO>>{});
-            }
-
-            // Here we do two things for each node in the equivalence classes higher than 1 i.e. not the boundary: we
-            // update it's GammaID_. All of the GammaID_'s have been shuffled around by adding the boundary nodes to the
-            // single "interface" interface entity that contains all nodes in the interface.If the node is a boundary
-            // node, we extract it into a new entity with the same multiplicity etc. and remove its ID from the
-            // boundaryNodes vector.
+            // Boundary insertion changes the interface numbering. Refresh Gamma IDs before
+            // extracting either whole entities or boundary subsets into equivalence class 1.
+            // The extracted nodes retain their updated IDs, multiplicity, and subdomains.
             auto interfaceNodes = interface->getConstNodeVectorRef();
             FROSCH_ASSERT(std::is_sorted(boundaryNodes.begin(), boundaryNodes.end()),
                             "FROSch::DDInterface: boundaryNodes need to be sorted for binary search.")
@@ -310,6 +250,9 @@ namespace FROSch {
                 // Goes through all nodes in the entities of the current entity set. If they are in boundaryNodes
                 // vector, they are moved to a new boundary entity and also removed from boundaryNodes vector.
                 EntitySetVector_[i]->moveNodesWithIDsToBoundary(boundaryNodes, tmpEntitySet, flag);
+                // A whole-entity extraction leaves an empty source. Remove it only after
+                // extraction has finished iterating over this set.
+                EntitySetVector_[i]->removeEmptyEntities();
                 EntitySetVector_[1]->addEntitySet(tmpEntitySet);
             }
 

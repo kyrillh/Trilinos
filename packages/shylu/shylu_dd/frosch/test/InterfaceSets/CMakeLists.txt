@@ -118,3 +118,11 @@ ARGS "--DIM=3 --M=4 --COMMSTRAT=2 --USETPETRA"
 COMM mpi
 NUM_MPI_PROCS 8
 )
+
+TRIBITS_ADD_TEST(
+interfacesets
+NAME test_interfacesets_boundary_extraction_TPETRA
+ARGS "--TESTBOUNDARYEXTRACTION"
+COMM mpi
+NUM_MPI_PROCS 4
+)

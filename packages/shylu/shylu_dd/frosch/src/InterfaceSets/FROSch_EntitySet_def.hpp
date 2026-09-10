@@ -382,7 +382,7 @@ namespace FROSch {
     // Part of the boundary framework
     /**
      * @brief search for the nodes passed in dirichletBoundaryNodes in entities in this set. If they are found they are
-     * moved to a new entity in of type BoundaryType and also removed dirichletBoundaryNodes.
+     * moved to a new entity of type BoundaryType and also removed from dirichletBoundaryNodes.
      * @param dirichletBoundaryNodes global node IDs to be moved
      * @param optional entity set to which the split off entities are added
      */
