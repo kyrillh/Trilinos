@@ -131,28 +131,38 @@ namespace FROSch {
                     LO rootID = tmpEntity->getRootID();
 
                     UN numRoots = tmpEntity->getRoots()->getNumEntities();
-                    if (rootID==-1) {
-                        FROSCH_ASSERT(numRoots!=0,"rootID==-1 but numRoots==0!");
-                        SC value;
-                        for (UN m=0; m<numRoots; m++) {
-                            InterfaceEntityPtr tmpRoot = tmpEntity->getRoots()->getEntity(m);
-                            // This determines which vector in the multivector is written to
-                            LO index = tmpRoot->getRootID();
-                            // Offspring: loop over nodes
-                            for (UN l = 0; l < tmpEntity->getNumNodes(); l++) {
-                                // The last entry in the 2nd dim. of getDistanceToRoot(i, last) is the sum of the distances between node i and all the roots in this subdomain
-                                value =
-                                    tmpEntity->getDistanceToRoot(l, m) / tmpEntity->getDistanceToRoot(l, numRoots);
-                                for (UN k=0; k<dofsPerNode; k++) {
-                                    tmpVector->replaceLocalValue(tmpEntity->getGammaDofID(l,k),index,value*ScalarTraits<SC>::one());
+                    // This checks that this entity:
+                    //  1. isn't a Dirichlet entity with zero roots (edge case of subdomain with not interface), in
+                    //  which case there are no distances to use. The entities nodal values will be zero from vector
+                    //  initialization.
+                    //  2. is not a root -> its nodal values are calculated via the distances to its roots.
+                    if (!(numRoots == 0 && tmpEntity->getEntityFlag() == DirichletFlag)) {
+                        if (rootID == -1) {
+                            FROSCH_ASSERT(numRoots != 0, "rootID==-1 but numRoots==0!");
+                            SC value;
+                            for (UN m = 0; m < numRoots; m++) {
+                                InterfaceEntityPtr tmpRoot = tmpEntity->getRoots()->getEntity(m);
+                                // This determines which vector in the multivector is written to
+                                LO index = tmpRoot->getRootID();
+                                // Offspring: loop over nodes
+                                for (UN l = 0; l < tmpEntity->getNumNodes(); l++) {
+                                    // The last entry in the 2nd dim. of getDistanceToRoot(i, last) is the sum of the
+                                    // distances between node i and all the roots in this subdomain
+                                    value =
+                                        tmpEntity->getDistanceToRoot(l, m) / tmpEntity->getDistanceToRoot(l, numRoots);
+                                    for (UN k = 0; k < dofsPerNode; k++) {
+                                        tmpVector->replaceLocalValue(tmpEntity->getGammaDofID(l, k), index,
+                                                                     value * ScalarTraits<SC>::one());
+                                    }
                                 }
                             }
-                        }
-                    } else {
-                        // Coarse node: loop over nodes
-                        for (UN l=0; l<tmpEntity->getNumNodes(); l++) {
-                            for (UN k=0; k<dofsPerNode; k++) {
-                                tmpVector->replaceLocalValue(tmpEntity->getGammaDofID(l,k),rootID,ScalarTraits<SC>::one());
+                        } else {
+                            // Coarse node: loop over nodes
+                            for (UN l = 0; l < tmpEntity->getNumNodes(); l++) {
+                                for (UN k = 0; k < dofsPerNode; k++) {
+                                    tmpVector->replaceLocalValue(tmpEntity->getGammaDofID(l, k), rootID,
+                                                                 ScalarTraits<SC>::one());
+                                }
                             }
                         }
                     }

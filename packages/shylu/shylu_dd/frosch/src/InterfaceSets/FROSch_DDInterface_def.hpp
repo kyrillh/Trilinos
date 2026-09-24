@@ -170,10 +170,8 @@ namespace FROSch {
     void DDInterface<SC, LO, GO, NO>::addBoundaryNodes(const GOVecView boundaryDofs, const EntityFlag flag,
                                                        const int dofOffset) {
         FROSCH_ASSERT(flag == DirichletFlag || flag == CustomBCFlag,
-                      "addBoundaryNodes() is only for adding Dirichlet or do nothing boundaries")
-        // If type == CustomBCFlag and HaveDirichletEntities_ == false we don't add custom boundary since we only want to
-        // modify it in conjuction with a Dirichlet entity
-        if (boundaryDofs.size() > 0 && (flag != CustomBCFlag || HaveDirichletEntities_)) {
+                      "addBoundaryNodes() is only for adding Dirichlet or custom boundaries")
+        if (boundaryDofs.size() > 0) {
 
             // Change the entity type of boundary entity set from default
             EntitySetVector_[1]->resetEntityType(BoundaryType);
@@ -223,18 +221,15 @@ namespace FROSch {
             IntVec subdomains({MpiComm_->getRank()});
             auto tmpEntity = Teuchos::rcp(new InterfaceEntity<SC, LO, GO, NO>(BoundaryType, DofsPerNode_, multiplicity,
                                                                              subdomains.data(), flag));
-            // Boundary insertion changes the interface numbering. Refresh Gamma IDs before
-            // extracting either whole entities or boundary subsets into equivalence class 1.
-            // The extracted nodes retain their updated IDs, multiplicity, and subdomains.
+            // Inserting boundary nodes to the interface changes the interface numbering -> refresh Gamma IDs of all interface entities.
             auto interfaceNodes = interface->getConstNodeVectorRef();
             FROSCH_ASSERT(std::is_sorted(boundaryNodes.begin(), boundaryNodes.end()),
                             "FROSch::DDInterface: boundaryNodes need to be sorted for binary search.")
             FROSCH_ASSERT(std::is_sorted(interfaceNodes.begin(), interfaceNodes.end(), [](const auto &a, const auto &b){ return a.NodeIDLocal_ < b.NodeIDLocal_;}),
                             "FROSch::DDInterface: interfaceNodes need to be sorted by localy ID for binary search.")
-            for (int i = 2; i < EntitySetVector_.size(); i++) {
+            for (int i = 1; i < EntitySetVector_.size(); i++) {
                 auto tmpEntitySet = Teuchos::rcp(new EntitySet<SC, LO, GO, NO>(BoundaryType));
                 for (int j = 0; j < EntitySetVector_[i]->getNumEntities(); j++) {
-                    // The remaining nodes are not in the boundary and need their gammaIDs updated
                     for (int k = 0; k < EntitySetVector_[i]->getEntity(j)->getNumNodes(); k++) {
                         // Find the current node in interface using binary search. This is probably more efficient
                         // than building a hashed map std::unordered_map since we are finding e.g. 2400 elements for
@@ -247,16 +242,21 @@ namespace FROSch {
                             k, interface->getGammaNodeID(std::distance(interfaceNodes.begin(), interfaceNodeIt)));
                     }
                 }
-                // Goes through all nodes in the entities of the current entity set. If they are in boundaryNodes
-                // vector, they are moved to a new boundary entity and also removed from boundaryNodes vector.
-                EntitySetVector_[i]->moveNodesWithIDsToBoundary(boundaryNodes, tmpEntitySet, flag);
-                // A whole-entity extraction leaves an empty source. Remove it only after
-                // extraction has finished iterating over this set.
-                EntitySetVector_[i]->removeEmptyEntities();
-                EntitySetVector_[1]->addEntitySet(tmpEntitySet);
+                // Extract boundary nodes from existing interface entities, making a new boundary interface entity.
+                // The extracted nodes retain their updated IDs, multiplicity, and subdomains.
+                // Skip i == 1 since boundary entities don't need to be re-extracted into boundary entities.
+                if (i != 1) {
+                    // Goes through all nodes in the entities of the current entity set. If they are in boundaryNodes
+                    // vector, they are moved to a new boundary entity and also removed from boundaryNodes vector.
+                    EntitySetVector_[i]->moveNodesWithIDsToBoundary(boundaryNodes, tmpEntitySet, flag);
+                    // A whole-entity extraction leaves an empty source. Remove it only after
+                    // extraction has finished iterating over this set.
+                    EntitySetVector_[i]->removeEmptyEntities();
+                    EntitySetVector_[1]->addEntitySet(tmpEntitySet);
+                }
             }
 
-            // Build the tmpEntity with the new gammaIDs and remove nodes from Interior_
+            // Collect remaining boundary nodes belonging only to this subdomain into tmpEntity, and remove them from Interior_.
             auto boundaryNodesIt = boundaryNodes.begin();
             // removeNode() uses binary search on the globalID so requires the nodes to be sorted by globalID
             Interior_->getEntity(0)->sortByGlobalID();
@@ -276,8 +276,6 @@ namespace FROSch {
                 }
             }
 
-
-
             // Restore local-ID order on interface.
             interface->sortUniqueByLocalID();
 
@@ -287,10 +285,17 @@ namespace FROSch {
             // Add the boundary entity to this->EntitySetVector_. It is not split into strictly connected entities here
             // i.e. entities in which the union of the support of associated finitie element basis functions forms a
             // connected set. This is done in a later call to sortInterface()
-            EntitySetVector_[1]->addEntity(tmpEntity);
+            if (tmpEntity->getNumNodes() > 0) {
+                EntitySetVector_[1]->addEntity(tmpEntity);
+            }
             if (flag == DirichletFlag) {
                 HaveDirichletEntities_ = true;
             }
+            // Entities have potentially been added and removed. Reindex the sets unique IDs in each EntitySet.
+            for (UN i=0; i<EntitySetVector_.size(); ++i) {
+                EntitySetVector_[i]->setUniqueIDToFirstGlobalNodeID();
+            }
+
         }
     }
 
