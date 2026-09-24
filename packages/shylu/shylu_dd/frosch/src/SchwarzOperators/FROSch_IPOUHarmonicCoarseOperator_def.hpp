@@ -351,8 +351,9 @@ namespace FROSch {
                           "FROSch::IPOUHarmonicCoarseOperator: combining 'Remove Dirichlet Nodes=true' with non-empty "
                           "customBCDofs is not supported. Set 'Remove Dirichlet Nodes' to false to use the boundary "
                           "framework with a custom boundary.");
-            // There is no point in adding boundary nodes to the interface if it is empty
-            if (interfacePartitionOfUnity->getDDInterface()->getInterface()->getEntity(0)->getNumNodes() > 0) {
+            // Only add boundary nodes if this subdomain is associated with the interface, or we have specified a custom boundary.
+            if (interfacePartitionOfUnity->getDDInterface()->getInterface()->getEntity(0)->getNumNodes() > 0 ||
+                customBCDofs.size() > 0) {
                 // These add a single boundary entity and rely on sortInterface to split it into connected entities
                 interfacePartitionOfUnity->addBoundaryNodes(dirichletBoundaryDofs(), DirichletFlag, dofOffset);
                 // If no customBCDofs are passed, this does nothing

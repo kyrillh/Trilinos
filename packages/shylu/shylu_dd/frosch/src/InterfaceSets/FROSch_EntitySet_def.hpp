@@ -162,9 +162,16 @@ namespace FROSch {
         EntitySetPtr Roots(new EntitySet<SC,LO,GO,NO>(DefaultType));
         for (UN i=0; i<getNumEntities(); i++) {
             EntitySetPtr tmpRoots = getEntity(i)->findRoots();
+            // If the entity has no ancestors, add it as a root unless it is Dirichlet.
+            // Otherwise, collect its roots in this entity set's root collection i.e. this equivalence class.
             if (tmpRoots.is_null()) {
-                FROSCH_ASSERT(getEntity(i)->getAncestors()->getNumEntities()==0,"FROSch::EntitySet: getEntity(i)->getAncestors()->getNumEntities()!=0");
-                Roots->addEntity(getEntity(i));
+                // An isolated physical Dirichlet entity should not become a root. This is an edge case e.g. a subdomain
+                // with no interface, but a Dirichlet boundary entity.
+                if (getEntity(i)->getEntityFlag() != DirichletFlag) {
+                    FROSCH_ASSERT(getEntity(i)->getAncestors()->getNumEntities() == 0,
+                                  "FROSch::EntitySet: getEntity(i)->getAncestors()->getNumEntities()!=0");
+                    Roots->addEntity(getEntity(i));
+                }
             } else {
                 FROSCH_ASSERT(getEntity(i)->getAncestors()->getNumEntities()!=0,"FROSch::EntitySet: getEntity(i)->getAncestors()->getNumEntities()==0");
                 FROSCH_ASSERT(tmpRoots->getNumEntities()>0,"FROSch::EntitySet: tmpRoots->getNumEntities()<=0");

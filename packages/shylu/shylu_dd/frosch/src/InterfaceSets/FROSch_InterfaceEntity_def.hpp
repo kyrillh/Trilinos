@@ -257,10 +257,15 @@ namespace FROSch {
     template <class SC,class LO,class GO,class NO>
     int InterfaceEntity<SC,LO,GO,NO>::findAncestorsInSet(EntitySetPtr entitySet)
     {
+        // A custom boundary supplies its own coarse trace calculated in
+        // RGDSWInterfacePartitionOfUnity::computePartitionOfUnity(), independent of interface roots.
+        if (Flag_ == CustomBCFlag) return 0;
         EntitySetPtr ancestors(new EntitySet<SC,LO,GO,NO>(*entitySet));
         IntVec tmpVector;
-        // Boundary entities don't have offspring. Their ancestors are all of the entities in the same subdomain.
-        if (Type_ != BoundaryType) {
+        // Dirichlet entities accept all supplied ancestors on this subdomain even if their subdomain set is not a
+        // subset of the subdomain sets of other entites e.g. step corner in backward-facing step with a regular domain
+        // decomposition. Custom boundary entities form roots and are ignored here (see above).
+        if (Flag_ != DirichletFlag) {
             // Remove all entities that are not an ancestor, either because they have a lower or equal multiplicity
             // (just being sure), or because they are not part of all the same subdomains (the "normal" case). An
             // ancestor should belong to a superset of subdomains.
@@ -467,150 +472,142 @@ namespace FROSch {
     }
 
     // Part of the boundary framework
-    // NOTE:[KH] This function was built for the 2D LDC problem. In this context it works, but contains an
-    // inconsistency. The interface values of some boundary entities (the single node entites that border the Neumann/do
-    // nothing boundary), have a different value on each subdomain that owns that node (two subdomains per node). This
-    // difference gets smaller as h gets smaller, but it's not strictly correct. Could be improved if necessary, but the
-    // approach didn't work for the P2P1 unstabilizied discretization.
     template <class SC, class LO, class GO, class NO>
     int InterfaceEntity<SC, LO, GO, NO>::computeDistancesOnBoundary(UN dimension, ConstXMultiVectorPtr &nodeList,
                                                                     ArrayRCP<EntitySetPtr> entitySetVector) {
-        FROSCH_ASSERT(!nodeList.is_null(),
-                      "FROSch::InterfaceEntity: The inverse euclidean distance to the Dirichlet entity cannot be "
-                      "calculated without coordinates of the nodes!");
-        FROSCH_ASSERT(dimension == nodeList->getNumVectors() && dimension > 1,
-                      "FROSch::InterfaceEntity: Inconsistent Dimension.");
-        FROSCH_ASSERT(
-            Flag_ == DirichletFlag || Flag_ == CustomBCFlag,
-            "FROSch::InterfaceEntity: computeDistancesOnBoundary() can only be called on boundary InterfaceEntities.");
-
-        // Hijack/overwrite the distancesVector with distance to Dirichlet node for all roots. We one vector in the
-        // multivector for each root since in the InterfacePartitionOfUnity classes an entry is built for each root.
-        DistancesVector_.resize(getNumNodes());
-        for (UN i = 0; i < getNumNodes(); i++) {
-            DistancesVector_[i].resize(Roots_->getNumEntities() + 1);
-            std::fill(DistancesVector_[i].begin(), DistancesVector_[i].end(), numeric_limits<SC>::max());
-        }
-
-        // If this is a Dirichlet entity, the distance calculated in RGDSWInterfacePartitionOfUnity should be zero. We
-        // set all the distances to zero, and the sum of the distances to all roots (last column) to one as this is the
-        // denominator in the inverse Euclidean distance.
-        if (Flag_ == DirichletFlag) {
-            for (UN i = 0; i < NodeVector_.size(); i++) {
-                for (UN j = 0; j < Roots_->getNumEntities(); j++) {
-                    DistancesVector_[i][j] = ScalarTraits<SC>::zero();
-                }
-                DistancesVector_[i][Roots_->getNumEntities()] = ScalarTraits<SC>::one();
-            }
+        FROSCH_ASSERT(Flag_ == DirichletFlag || Flag_ == CustomBCFlag,
+                      "computeDistancesOnBoundary requires a boundary entity.");
+        // Custom entities are roots: RGDSW assigns their unit trace directly.
+        if (Flag_ == CustomBCFlag) {
+            // ++++++++++++++++++++++++++++++++++++++ Begin block 2D LDC +++++++++++++++++++++++++++++++++++++++++++++++
+            // This block is outdated. The new approach (25.09.26) makes custom boundary entities independent roots.
+            // Their partition-of-unity values are set directly to one in RGDSWInterfacePartitionOfUnity::computePartitionOfUnity().
+            // This block was built for the 2D LDC problem. In this context it works, but contains an inconsistency. The
+            // interface values of some boundary entities (the single node entites that border the Neumann/do nothing
+            // boundary), have a different value on each subdomain that owns that node (two subdomains per node). This
+            // difference gets smaller as h gets smaller, but it's not strictly correct. Could be improved if necessary,
+            // but the approach didn't work for the P2P1 unstabilizied discretization. 
+            // auto dirichletEntities = rcp(new EntitySet<SC, LO, GO, NO>(BoundaryType));
+            // // Extract Dirichlet entities (if they exist)
+            // for (int i = 0; i < entitySetVector[1]->getNumEntities(); i++) {
+            //     if (entitySetVector[1]->getEntity(i)->getEntityFlag() == DirichletFlag) {
+            //         dirichletEntities->addEntity(entitySetVector[1]->getEntity(i));
+            //     }
+            // }
+            // // If there are zero or more than one Dirichlet entities in the local subdomain, set the distance to
+            // // one/num. coarse basis functions everywhere since it does not make sense to compute the inverse
+            // Euclidean
+            // // distance to a Dirichlet entity in this case.
+            //
+            // if (dirichletEntities->getNumEntities() != 1) {
+            //     if (dirichletEntities->getNumEntities() > 1) {
+            //         FROSCH_WARNING("FROSch_InterfaceEntity", true,
+            //                        "There are more than one Dirichlet entities in this subdomain. Setting do nothing
+            //                        " "interface to one.");
+            //     }
+            //
+            //     // Each entry in Roots_ corresponds to a coarse basis function. Since every one will contribute to
+            //     the
+            //     // value on the do nothing entity, divide by the number of roots to get one in total. If there are no
+            //     // roots, leave DistancesVector_ as is (numeric_limits<SC>::max()) - the RGDSW PoU loop will skip
+            //     // this entity since numRoots == 0.
+            //     if (Roots_->getNumEntities() > 0) {
+            //         const SC invNumRoots = ScalarTraits<SC>::one() / static_cast<SC>(Roots_->getNumEntities());
+            //         for (UN i = 0; i < NodeVector_.size(); i++) {
+            //             for (UN j = 0; j < Roots_->getNumEntities(); j++) {
+            //                 DistancesVector_[i][j] = invNumRoots;
+            //             }
+            //             // Note that the last entry in DistancesVector_[i] usually contains the sum of all the
+            //             // distances between node i and all the roots. Setting this value to one, ensures that
+            //             // 1/1 = 1 results from the inverse Euclidean calculation in the
+            //             // RGDSWInterfacePartitionOfUnity
+            //             DistancesVector_[i][Roots_->getNumEntities()] = ScalarTraits<SC>::one();
+            //         }
+            //     }
+            // } else {
+            //     // In this case there is exactly one Dirichlet and one interface entity higher up the hierarchy as
+            //     // neighbors
+            //     FROSCH_ASSERT(dimension == 2, "FROSch::InterfaceEntity::computeDistancesOnBoundary: Only implemented
+            //     for 2D at the moment.");
+            //
+            //     SCVecPtr dirichletDistance = ArrayRCP<SC>(NodeVector_.size(), numeric_limits<SC>::max());
+            //     // Iterate over the whole Dirichlet entity and keep the min. distance
+            //     for (UN i = 0; i < dirichletEntities->getEntity(0)->getNumNodes(); i++) {
+            //         // Coordinates of node j of the Dirichlet entity
+            //         SCVecPtr dirichletNode(dimension);
+            //         for (UN j = 0; j < dimension; j++) {
+            //             dirichletNode[j] = nodeList->getData(j)[dirichletEntities->getEntity(0)->getLocalNodeID(i)];
+            //         }
+            //         for (UN j = 0; j < NodeVector_.size(); j++) {
+            //             SC distance = ScalarTraits<SC>::zero();
+            //             // Compute quadratic distance between node j in the Dirichlet entity and all the nodes in
+            //             // this entity
+            //             for (UN k = 0; k < dimension; k++) {
+            //                 distance += (nodeList->getData(k)[this->getLocalNodeID(j)] - dirichletNode[k]) *
+            //                             (nodeList->getData(k)[this->getLocalNodeID(j)] - dirichletNode[k]);
+            //             }
+            //             distance = sqrt(distance);
+            //             // Keep the min. distance over all nodes in the Dirichlet entity (loop i)
+            //             dirichletDistance[j] = min(dirichletDistance[j], distance);
+            //         }
+            //     }
+            //
+            //     // Iterate over the whole neighbor entity and keep the min. distance
+            //     for (UN m = 0; m < entitySetVector[2]->getNumEntities(); m++) {
+            //         for (UN i = 0; i < entitySetVector[2]->getEntity(m)->getNumNodes(); i++) {
+            //             // Coordinates of node j of the Dirichlet entity
+            //             SCVecPtr neighborNode(dimension);
+            //             for (UN j = 0; j < dimension; j++) {
+            //                 neighborNode[j] =
+            //                 nodeList->getData(j)[entitySetVector[2]->getEntity(m)->getLocalNodeID(i)];
+            //             }
+            //             for (UN j = 0; j < NodeVector_.size(); j++) {
+            //                 SC distance = ScalarTraits<SC>::zero();
+            //                 // Compute quadratic distance between node j in the Dirichlet entity and all the nodes in
+            //                 // this entity
+            //                 for (UN k = 0; k < dimension; k++) {
+            //                     distance += (nodeList->getData(k)[this->getLocalNodeID(j)] - neighborNode[k]) *
+            //                                 (nodeList->getData(k)[this->getLocalNodeID(j)] - neighborNode[k]);
+            //                 }
+            //                 distance = sqrt(distance);
+            //                 // Keep the min. distance over all nodes in all neighbor entities (loop m and i)
+            //                 DistancesVector_[j][0] = min(DistancesVector_[j][0], distance);
+            //             }
+            //         }
+            //     }
+            //
+            //     // Convert the distance to an inverse distance
+            //     for (UN i = 0; i < NodeVector_.size(); i++) {
+            //
+            //         FROSCH_ASSERT(dirichletDistance[i] > 10 * numeric_limits<SC>::min(),
+            //                       "FROSch::InterfaceEntity: Dirichlet entities should never overlap with other "
+            //                       "boundary entities.")
+            //
+            //         dirichletDistance[i] = ScalarTraits<SC>::one() / dirichletDistance[i];
+            //         DistancesVector_[i][0] = ScalarTraits<SC>::one() / DistancesVector_[i][0];
+            //
+            //         // For every root there is a coarse basis function, each of which requires this distance, so we
+            //         copy
+            //         // the distance to entries for all other roots.
+            //         for (UN j = 1; j < Roots_->getNumEntities(); j++) {
+            //             DistancesVector_[i][j] = DistancesVector_[i][0];
+            //         }
+            //     }
+            //
+            //     // The last "column" stores the sum of the distances from node i to the Dirichlet entity and the
+            //     // neighbor interface entity. Required for the inverse Euclidean formulation.
+            //     for (UN i = 0; i < NodeVector_.size(); i++) {
+            //         DistancesVector_[i][Roots_->getNumEntities()] = DistancesVector_[i][0] + dirichletDistance[i];
+            //     }
+            // }
+            // ++++++++++++++++++++++++++++++++++++++++++++ End block 2D LDC +++++++++++++++++++++++++++++++++++++++++++
         } else {
-
-            auto dirichletEntities = rcp(new EntitySet<SC, LO, GO, NO>(BoundaryType));
-            // Extract Dirichlet entities (if they exist)
-            for (int i = 0; i < entitySetVector[1]->getNumEntities(); i++) {
-                if (entitySetVector[1]->getEntity(i)->getEntityFlag() == DirichletFlag) {
-                    dirichletEntities->addEntity(entitySetVector[1]->getEntity(i));
-                }
-            }
-            // If there are zero or more than one Dirichlet entities in the local subdomain, set the distance to
-            // one/num. coarse basis functions everywhere since it does not make sense to compute the inverse Euclidean
-            // distance to a Dirichlet entity in this case.
-
-            if (dirichletEntities->getNumEntities() != 1) {
-                if (dirichletEntities->getNumEntities() > 1) {
-                    FROSCH_WARNING("FROSch_InterfaceEntity", true,
-                                   "There are more than one Dirichlet entities in this subdomain. Setting do nothing "
-                                   "interface to one.");
-                }
-
-                // Each entry in Roots_ corresponds to a coarse basis function. Since every one will contribute to the
-                // value on the do nothing entity, divide by the number of roots to get one in total. If there are no
-                // roots, leave DistancesVector_ as is (numeric_limits<SC>::max()) - the RGDSW PoU loop will skip
-                // this entity since numRoots == 0.
-                if (Roots_->getNumEntities() > 0) {
-                    const SC invNumRoots = ScalarTraits<SC>::one() / static_cast<SC>(Roots_->getNumEntities());
-                    for (UN i = 0; i < NodeVector_.size(); i++) {
-                        for (UN j = 0; j < Roots_->getNumEntities(); j++) {
-                            DistancesVector_[i][j] = invNumRoots;
-                        }
-                        // Note that the last entry in DistancesVector_[i] usually contains the sum of all the
-                        // distances between node i and all the roots. Setting this value to one, ensures that
-                        // 1/1 = 1 results from the inverse Euclidean calculation in the
-                        // RGDSWInterfacePartitionOfUnity
-                        DistancesVector_[i][Roots_->getNumEntities()] = ScalarTraits<SC>::one();
-                    }
-                }
-            } else {
-                // In this case there is exactly one Dirichlet and one interface entity higher up the hierarchy as
-                // neighbors
-                FROSCH_ASSERT(dimension == 2, "FROSch::InterfaceEntity::computeDistancesOnBoundary: Only implemented for 2D at the moment.");
-
-                SCVecPtr dirichletDistance = ArrayRCP<SC>(NodeVector_.size(), numeric_limits<SC>::max());
-                // Iterate over the whole Dirichlet entity and keep the min. distance
-                for (UN i = 0; i < dirichletEntities->getEntity(0)->getNumNodes(); i++) {
-                    // Coordinates of node j of the Dirichlet entity
-                    SCVecPtr dirichletNode(dimension);
-                    for (UN j = 0; j < dimension; j++) {
-                        dirichletNode[j] = nodeList->getData(j)[dirichletEntities->getEntity(0)->getLocalNodeID(i)];
-                    }
-                    for (UN j = 0; j < NodeVector_.size(); j++) {
-                        SC distance = ScalarTraits<SC>::zero();
-                        // Compute quadratic distance between node j in the Dirichlet entity and all the nodes in
-                        // this entity
-                        for (UN k = 0; k < dimension; k++) {
-                            distance += (nodeList->getData(k)[this->getLocalNodeID(j)] - dirichletNode[k]) *
-                                        (nodeList->getData(k)[this->getLocalNodeID(j)] - dirichletNode[k]);
-                        }
-                        distance = sqrt(distance);
-                        // Keep the min. distance over all nodes in the Dirichlet entity (loop i)
-                        dirichletDistance[j] = min(dirichletDistance[j], distance);
-                    }
-                }
-
-                // Iterate over the whole neighbor entity and keep the min. distance
-                for (UN m = 0; m < entitySetVector[2]->getNumEntities(); m++) {
-                    for (UN i = 0; i < entitySetVector[2]->getEntity(m)->getNumNodes(); i++) {
-                        // Coordinates of node j of the Dirichlet entity
-                        SCVecPtr neighborNode(dimension);
-                        for (UN j = 0; j < dimension; j++) {
-                            neighborNode[j] = nodeList->getData(j)[entitySetVector[2]->getEntity(m)->getLocalNodeID(i)];
-                        }
-                        for (UN j = 0; j < NodeVector_.size(); j++) {
-                            SC distance = ScalarTraits<SC>::zero();
-                            // Compute quadratic distance between node j in the Dirichlet entity and all the nodes in
-                            // this entity
-                            for (UN k = 0; k < dimension; k++) {
-                                distance += (nodeList->getData(k)[this->getLocalNodeID(j)] - neighborNode[k]) *
-                                            (nodeList->getData(k)[this->getLocalNodeID(j)] - neighborNode[k]);
-                            }
-                            distance = sqrt(distance);
-                            // Keep the min. distance over all nodes in all neighbor entities (loop m and i)
-                            DistancesVector_[j][0] = min(DistancesVector_[j][0], distance);
-                        }
-                    }
-                }
-
-                // Convert the distance to an inverse distance
-                for (UN i = 0; i < NodeVector_.size(); i++) {
-
-                    FROSCH_ASSERT(dirichletDistance[i] > 10 * numeric_limits<SC>::min(),
-                                  "FROSch::InterfaceEntity: Dirichlet entities should never overlap with other "
-                                  "boundary entities.")
-
-                    dirichletDistance[i] = ScalarTraits<SC>::one() / dirichletDistance[i];
-                    DistancesVector_[i][0] = ScalarTraits<SC>::one() / DistancesVector_[i][0];
-
-                    // For every root there is a coarse basis function, each of which requires this distance, so we copy
-                    // the distance to entries for all other roots.
-                    for (UN j = 1; j < Roots_->getNumEntities(); j++) {
-                        DistancesVector_[i][j] = DistancesVector_[i][0];
-                    }
-                }
-
-                // The last "column" stores the sum of the distances from node i to the Dirichlet entity and the
-                // neighbor interface entity. Required for the inverse Euclidean formulation.
-                for (UN i = 0; i < NodeVector_.size(); i++) {
-                    DistancesVector_[i][Roots_->getNumEntities()] = DistancesVector_[i][0] + dirichletDistance[i];
-                }
+            // Dirichlet traces vanish, even if the entity has no ordinary interface roots.
+            DistancesVector_.resize(getNumNodes());
+            for (UN i = 0; i < getNumNodes(); ++i) {
+                DistancesVector_[i].resize(Roots_->getNumEntities() + 1);
+                std::fill(DistancesVector_[i].begin(), DistancesVector_[i].end(), ScalarTraits<SC>::zero());
+                DistancesVector_[i][Roots_->getNumEntities()] = ScalarTraits<SC>::one();
             }
         }
         return 0;

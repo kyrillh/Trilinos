@@ -28,6 +28,7 @@
 #include <Xpetra_DefaultPlatform.hpp>
 
 #include <FROSch_DDInterface_def.hpp>
+#include <FROSch_RGDSWInterfacePartitionOfUnity_def.hpp>
 
 #include <FROSch_Tools_decl.hpp>
 
@@ -126,6 +127,121 @@ int testBoundaryExtraction(const RCP<const Comm<int>> &comm)
     return total == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
+// Exercise custom-only, mixed, shared, and initially empty coarse interfaces.
+int testCustomBoundary(const RCP<const Comm<int>> &comm)
+{
+    if (comm->getSize() != 4) return EXIT_FAILURE;
+    int failures = 0;
+    // Shared custom roots, isolated custom roots, mixed ordinary/custom roots, and no roots.
+    for (int scenario = 0; scenario < 4; ++scenario) {
+        const bool isolated = scenario == 1 || scenario == 3;
+        for (int dofs = 1; dofs <= 2; ++dofs) {
+            const int rank = comm->getRank();
+            Array<GO> nodes;
+            nodes.push_back(isolated ? 3*rank : rank);
+            nodes.push_back(isolated ? 3*rank+1 : rank+1);
+            nodes.push_back(20+rank);
+            if (scenario == 2) {
+                nodes.push_back(30+rank);
+                nodes.push_back(31+rank);
+            }
+            auto map = MapFactory<LO,GO,NO>::Build(UseTpetra,
+                OrdinalTraits<Xpetra::global_size_t>::invalid(), nodes(), 0, comm);
+            ArrayRCP<RCP<const Map<LO,GO,NO>>> dofMaps(dofs);
+            for (int k = 0; k < dofs; ++k) {
+                Array<GO> ids;
+                for (GO node : nodes) ids.push_back(dofs*node+k);
+                dofMaps[k] = MapFactory<LO,GO,NO>::Build(UseTpetra,
+                    OrdinalTraits<Xpetra::global_size_t>::invalid(), ids(), 0, comm);
+            }
+            auto params = rcp(new ParameterList);
+            params->set("Test Unconnected Interface", false);
+            RGDSWInterfacePartitionOfUnity<SC,LO,GO,NO> pou(comm, rcp(new SerialComm<int>),
+                2, dofs, map, dofMaps, params, None);
+            Array<GO> custom, dirichlet;
+            for (int k = 0; k < dofs; ++k) {
+                if (scenario != 3) {
+                    custom.push_back(dofs*nodes[0]+k);
+                    custom.push_back(dofs*nodes[1]+k);
+                }
+                if (dofs == 2 || scenario == 3) dirichlet.push_back(dofs*nodes[2]+k);
+            }
+            std::sort(custom.begin(), custom.end());
+            pou.addBoundaryNodes(dirichlet(), DirichletFlag, 0);
+            pou.addBoundaryNodes(custom(), CustomBCFlag, 0);
+            auto coords = MultiVectorFactory<SC,LO,GO,NO>::Build(map, 2);
+            for (int n = 0; n < nodes.size(); ++n) {
+                coords->replaceLocalValue(n, 0, nodes[n]);
+                coords->replaceLocalValue(n, 1, rank);
+            }
+            pou.sortInterface(null, coords);
+            pou.computePartitionOfUnity(coords);
+            const auto dd = pou.getDDInterface();
+            const auto roots = dd->getRoots();
+            const auto values = pou.getLocalPartitionOfUnity()[0];
+            const auto entities = dd->getEntitySetVector()[1];
+            for (unsigned e = 0; e < entities->getNumEntities(); ++e) {
+                const auto entity = entities->getEntity(e);
+                const bool isCustom = entity->getEntityFlag() == CustomBCFlag;
+                if (isCustom && (entity->getRootID() < 0 || entity->getAncestors()->getNumEntities())) ++failures;
+                if (!isCustom) {
+                    // Dirichlet entities inherit ordinary interface roots, never custom roots.
+                    // With no ordinary roots they remain rootless and must not become roots themselves.
+                    if (entity->getRootID() != -1) ++failures;
+                    unsigned expectedDirichletRoots = 0;
+                    for (unsigned c = 0; c < roots->getNumEntities(); ++c) {
+                        const bool ordinaryRoot = roots->getEntity(c)->getEntityFlag() != CustomBCFlag;
+                        if (ordinaryRoot) ++expectedDirichletRoots;
+                        bool associated = false;
+                        for (unsigned r = 0; r < entity->getRoots()->getNumEntities(); ++r)
+                            associated |= entity->getRoots()->getEntity(r).getRawPtr() == roots->getEntity(c).getRawPtr();
+                        if (associated != ordinaryRoot) ++failures;
+                    }
+                    if (entity->getRoots()->getNumEntities() != expectedDirichletRoots) ++failures;
+                }
+                for (unsigned n = 0; n < entity->getNumNodes(); ++n) {
+                    for (int k = 0; k < dofs; ++k) {
+                        SC sum = 0;
+                        for (unsigned c = 0; !values.is_null() && c < values->getNumVectors(); ++c) {
+                            const SC value = values->getData(c)[entity->getGammaDofID(n,k)];
+                            if (!isCustom && value != 0.0) ++failures;
+                            sum += value;
+                        }
+                        if (std::abs(sum - (isCustom ? 1.0 : 0.0)) > 1.e-12) ++failures;
+                    }
+                }
+            }
+            const unsigned expectedRoots = scenario == 3 ? 0 :
+                (isolated ? 1 : 2) + (scenario == 2 ? (rank == 0 || rank == 3 ? 1 : 2) : 0);
+            if (roots->getNumEntities() != expectedRoots ||
+                (values.is_null() ? 0 : values->getNumVectors()) != expectedRoots) ++failures;
+            // Shared boundary nodes must reference the same global coarse column on both owners.
+            GO localIDs[2] = {-1, -1};
+            for (unsigned c = 0; c < roots->getNumEntities(); ++c) {
+                const auto root = roots->getEntity(c);
+                for (unsigned n = 0; n < root->getNumNodes(); ++n)
+                    for (int j = 0; j < 2; ++j)
+                        if (root->getGlobalNodeID(n) == nodes[j])
+                            localIDs[j] = roots->getEntityMap()->getGlobalElement(c);
+            }
+            GO allIDs[8];
+            gatherAll(*comm, 2, localIDs, 8, allIDs);
+            if (!isolated)
+                for (int r = 0; r < 3; ++r)
+                    if (allIDs[2*r+1] != allIDs[2*(r+1)]) ++failures;
+            for (unsigned c = 0; !values.is_null() && c < values->getNumVectors(); ++c) {
+                SC norm = 0;
+                for (SC value : values->getData(c)) norm += value*value;
+                if (!(norm > 0)) ++failures;
+            }
+        }
+    }
+    int total = 0;
+    reduceAll(*comm, REDUCE_SUM, 1, &failures, &total);
+    if (comm->getRank() == 0) std::cout << "Custom boundary failures: " << total << std::endl;
+    return total ? EXIT_FAILURE : EXIT_SUCCESS;
+}
+
 int main(int argc, char *argv[])
 {
     using namespace std;
@@ -142,6 +258,8 @@ int main(int argc, char *argv[])
 
     RCP<FancyOStream> out = VerboseObjectBase::getDefaultOStream();
 
+    bool testCustom = false;
+    My_CLP.setOption("TESTCUSTOMBOUNDARY", "NOTESTCUSTOMBOUNDARY", &testCustom);
     bool testBoundary = false;
     My_CLP.setOption("TESTBOUNDARYEXTRACTION", "NOTESTBOUNDARYEXTRACTION", &testBoundary,
                      "Run the boundary extraction regression on four ranks.");
@@ -162,6 +280,7 @@ int main(int argc, char *argv[])
         return(EXIT_SUCCESS);
     }
 
+    if (testCustom) return testCustomBoundary(CommWorld);
     if (testBoundary) return testBoundaryExtraction(CommWorld);
 
     CommWorld->barrier();

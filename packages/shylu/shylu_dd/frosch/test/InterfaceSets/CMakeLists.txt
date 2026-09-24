@@ -126,3 +126,11 @@ ARGS "--TESTBOUNDARYEXTRACTION"
 COMM mpi
 NUM_MPI_PROCS 4
 )
+
+TRIBITS_ADD_TEST(
+interfacesets
+NAME test_interfacesets_custom_boundary_TPETRA
+ARGS "--TESTCUSTOMBOUNDARY"
+COMM mpi
+NUM_MPI_PROCS 4
+)
