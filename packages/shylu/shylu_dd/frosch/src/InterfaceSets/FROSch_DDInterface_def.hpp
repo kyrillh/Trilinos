@@ -43,8 +43,7 @@ namespace FROSch {
     NumMyNodes_ (localToGlobalMap->getLocalNumElements()),
     NodesMap_ (localToGlobalMap),
     CommStrategy_ (commStrategy),
-    /* Verbose_ (MpiComm_->getRank()==0), */
-    Verbose_ (false),
+    Verbose_ (MpiComm_->getRank()==0),
     Verbosity_ (verbosity),
     LevelID_ (levelID),
     HaveDirichletEntities_(false)

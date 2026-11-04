@@ -31,8 +31,7 @@ namespace FROSch {
     MpiComm_ (mpiComm),
     SerialComm_ (serialComm),
     ParameterList_ (parameterList),
-    /* Verbose_ (MpiComm_->getRank() == 0), */
-    Verbose_ (false),
+    Verbose_ (MpiComm_->getRank() == 0),
     Verbosity_ (verbosity),
     LevelID_ (levelID)
     {

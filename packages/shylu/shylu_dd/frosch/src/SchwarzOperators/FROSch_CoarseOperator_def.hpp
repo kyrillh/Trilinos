@@ -426,8 +426,7 @@ namespace FROSch {
                 reduceAll(*CoarseSolveComm_,REDUCE_MIN,localVec[4],ptr(&minVec[4]));
                 reduceAll(*CoarseSolveComm_,REDUCE_MAX,localVec[4],ptr(&maxVec[4]));
 
-                /* if (CoarseSolveComm_->getRank() == 0) { */
-                if (false) {
+                if (CoarseSolveComm_->getRank() == 0) {
                     cout
                     << "\n" << setw(FROSCH_OUTPUT_INDENT) << " "
                     << setw(89) << "-----------------------------------------------------------------------------------------"
