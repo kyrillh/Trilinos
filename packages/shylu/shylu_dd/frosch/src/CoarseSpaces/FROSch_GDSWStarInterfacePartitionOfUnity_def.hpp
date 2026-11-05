@@ -132,11 +132,11 @@ namespace FROSch {
                 // Loop over entities
                 for (UN j=0; j<EntitySetVector_[i]->getNumEntities(); j++) {
                     InterfaceEntityPtr tmpEntity = EntitySetVector_[i]->getEntity(j);
-                    LO leafID = tmpEntity->getLeafID();
-                    // If the entity is a leaf, it will obtain its own partition of unity function
-                    if (leafID==-1) {
+                    // Not a Dirichlet entity or a leaf entity (3D: vertex or edge not on the Dirichlet boundary)
+                    if (tmpEntity->getEntityFlag() != DirichletFlag && tmpEntity->getLeafID() == -1) {
                         LO rootID = tmpEntity->getRootID();
                         UN numRoots = tmpEntity->getRoots()->getNumEntities();
+                        // Not a root entity (3D: not a vertex -> is an edge)
                         if (rootID==-1) {
                             FROSCH_ASSERT(numRoots!=0,"FROSch::GDSWStarInterfacePartitionOfUnity: rootID==-1 but numRoots==0!");
                             for (UN m=0; m<numRoots; m++) {
@@ -151,7 +151,7 @@ namespace FROSch {
                                 }
                             }
                         } else {
-                            // Coarse node: loop over nodes
+                            // Coarse vertex: loop over nodes
                             for (UN l=0; l<EntitySetVector_[i]->getEntity(j)->getNumNodes(); l++) {
                                 for (UN k=0; k<dofsPerNode; k++) {
                                     tmpVector->replaceLocalValue(tmpEntity->getGammaDofID(l,k),rootID,ScalarTraits<SC>::one());

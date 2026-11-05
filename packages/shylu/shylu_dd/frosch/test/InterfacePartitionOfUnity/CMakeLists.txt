@@ -3,6 +3,18 @@ TRIBITS_ADD_EXECUTABLE(
 	SOURCES main.cpp
 )
 
+TRIBITS_ADD_EXECUTABLE(
+    gdswstar_boundary
+    SOURCES gdswstar_boundary.cpp
+)
+
+TRIBITS_ADD_TEST(
+    gdswstar_boundary
+    NAME test_gdswstar_boundary_TPETRA
+    COMM mpi
+    NUM_MPI_PROCS 4
+)
+
 TRIBITS_COPY_FILES_TO_BINARY_DIR(IPOUCopyFiles
     DEST_FILES ParametersIPOU.xml
     SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}

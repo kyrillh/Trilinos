@@ -186,9 +186,26 @@ namespace FROSch {
     typename EntitySet<SC,LO,GO,NO>::EntitySetPtr EntitySet<SC,LO,GO,NO>::findLeafs()
     {
         EntitySetPtr Leafs(new EntitySet<SC,LO,GO,NO>(DefaultType));
-        for (UN i=0; i<getNumEntities(); i++) {
-            if (getEntity(i)->getOffspring()->getNumEntities()==0) {
-                Leafs->addEntity(getEntity(i));
+        // In the boundary framework (nonlinear Schwarz), physical Dirichlet entities are built that belong to a single
+        // subdomain. This makes them leaves in the hierarchy, to which GDSWStar assigns a coarse basis function. We
+        // don't want this behaviour. By default the boundary entities should be set to zero and not assigned a coarse
+        // basis function. They also should not be counted as offspring of interior entities, as this would disrupt the
+        // desired leaf assignment.
+        for (UN i = 0; i < getNumEntities(); i++) {
+            // Dirichlet entities should not be leaves
+            if (getEntity(i)->getEntityFlag() != DirichletFlag) {
+                bool isLeaf = true;
+                auto offspring = getEntity(i)->getOffspring();
+                for (UN j = 0; j < offspring->getNumEntities(); ++j) {
+                    // Offspring that are Dirichlet entities don't affect the leaf property.
+                    if (offspring->getEntity(j)->getEntityFlag() != DirichletFlag) {
+                        isLeaf = false;
+                        break;
+                    }
+                }
+                if (isLeaf) {
+                    Leafs->addEntity(getEntity(i));
+                }
             }
         }
         Leafs->sortUnique();

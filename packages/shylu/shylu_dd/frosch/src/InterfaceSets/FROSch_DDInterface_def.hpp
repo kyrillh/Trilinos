@@ -785,7 +785,6 @@ namespace FROSch {
         Roots_->setRootID();
 
         // Find Leafs i.e. offspring that don't have offspring themselves
-        // NOTE: [KH] The boundary framework might have broken the usage of leaves (leafs) in GDSW-star.
         for (UN i=0; i<EntitySetVector_.size(); i++) {
             EntitySetPtr tmpLeafs = EntitySetVector_[i]->findLeafs();
             Leafs_->addEntitySet(tmpLeafs);
