@@ -24,6 +24,7 @@ namespace FROSch {
                                                 ParameterListPtr parameterList) :
     SchwarzOperator<SC,LO,GO,NO> (k,parameterList),
     CoarseSpace_ (new CoarseSpace<SC,LO,GO,NO>(this->MpiComm_,this->SerialComm_)),
+    coarseSubdomainMatrixNNZ_(0),
     DistributionList_ (sublist(parameterList,"Distribution"))
     {
         FROSCH_DETAILTIMER_START_LEVELID(coarseOperatorTime,"CoarseOperator::CoarseOperator");
@@ -523,7 +524,10 @@ namespace FROSch {
                 FROSCH_DETAILTIMER_STOP(printStatisticsTime);
 
                 bool reuseCoarseMatrixSymbolicFactorization = this->ParameterList_->get("Reuse: Coarse Matrix Symbolic Factorization",true);
+
                 if (!this->IsComputed_) {
+                    reuseCoarseMatrixSymbolicFactorization = false;
+                } else if (coarseSubdomainMatrixNNZ_ != CoarseMatrix_->getGlobalNumEntries()) {
                     reuseCoarseMatrixSymbolicFactorization = false;
                 }
                 if (!reuseCoarseMatrixSymbolicFactorization) {
@@ -532,6 +536,7 @@ namespace FROSch {
                                                                       sublist(this->ParameterList_,"CoarseSolver"),
                                                                       string("CoarseSolver (Level ") + to_string(this->LevelID_) + string(")"));
                     CoarseSolver_->initialize();
+                    coarseSubdomainMatrixNNZ_ = CoarseMatrix_->getGlobalNumEntries();
                 } else {
                     FROSCH_ASSERT(!CoarseSolver_.is_null(),"FROSch::CoarseOperator: CoarseSolver_.is_null()");
                     CoarseSolver_->updateMatrix(CoarseMatrix_.getConst(),true);
