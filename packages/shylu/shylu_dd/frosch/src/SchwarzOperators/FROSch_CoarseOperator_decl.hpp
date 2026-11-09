@@ -10,6 +10,7 @@
 #ifndef _FROSCH_COARSEOPERATOR_DECL_HPP
 #define _FROSCH_COARSEOPERATOR_DECL_HPP
 
+#include "Xpetra_ConfigDefs.hpp"
 #include <FROSch_SchwarzOperator_decl.hpp>
 
 // #define FROSCH_COARSEOPERATOR_DETAIL_TIMERS
@@ -172,6 +173,7 @@ namespace FROSch {
 
         // result of ExtractLocalSubdomainMatrix_Symbolic
         bool coarseExtractLocalSubdomainMatrix_Symbolic_Done_ = false;
+        Xpetra::global_size_t coarseSubdomainMatrixNNZ_;
         XMatrixPtr coarseSubdomainMatrix_;
         XMatrixPtr coarseLocalSubdomainMatrix_;
         XImportPtr coarseScatter_;
